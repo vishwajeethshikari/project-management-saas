@@ -3,6 +3,9 @@ package com.driveease.gateway.controller;
 import com.driveease.gateway.entity.Project;
 import com.driveease.gateway.service.ProjectService;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 import java.util.List;
 
@@ -30,4 +33,16 @@ public class ProjectController {
     public Project getProjectById(@PathVariable Long id) {
         return projectService.getProjectById(id);
     }
+    @PutMapping("/{id}")
+    public Project updateProject(
+            @PathVariable Long id,
+            @Valid @RequestBody Project project) {
+        return projectService.updateProject(id, project);
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteProject(@PathVariable Long id) {
+        projectService.deleteProject(id);
+    }
+    
 }

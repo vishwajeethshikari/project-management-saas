@@ -28,4 +28,23 @@ public class ProjectService {
                 .orElseThrow(() ->
                         new RuntimeException("Project not found: " + id));
     }
+    public Project updateProject(Long id, Project updatedProject) {
+        Project existingProject = projectRepository.findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException("Project not found: " + id));
+
+        existingProject.setName(updatedProject.getName());
+        existingProject.setDescription(updatedProject.getDescription());
+        existingProject.setStatus(updatedProject.getStatus());
+
+        return projectRepository.save(existingProject);
+    }
+
+    public void deleteProject(Long id) {
+        Project existingProject = projectRepository.findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException("Project not found: " + id));
+
+        projectRepository.delete(existingProject);
+    }
 }
