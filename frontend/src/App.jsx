@@ -1,121 +1,141 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="dashboard">
+      <aside className="sidebar">
+        <h2 className="logo">TaskFlow</h2>
 
-      <div className="ticks"></div>
+        <nav>
+          <button className="nav-item active">Dashboard</button>
+          <button className="nav-item">Projects</button>
+          <button className="nav-item">Tasks</button>
+          <button className="nav-item">Team</button>
+          <button className="nav-item calendar-item">✦ Calendar</button>
+        </nav>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+        <div className="profile">
+          <div className="avatar">S</div>
+          <div>
+            <h4>Student</h4>
+            <p>Frontend Developer</p>
+          </div>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      </aside>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      <main className="main-content">
+        <header className="topbar">
+          <div>
+            <h1>Dashboard</h1>
+            <p>Welcome back! Here's your project overview.</p>
+          </div>
+          <button className="primary-btn">+ New Project</button>
+        </header>
+
+        <section className="stats">
+          <div className="stat-card purple">
+            <p>Total Projects</p>
+            <h2>12</h2>
+            <span>Projects you're working on</span>
+          </div>
+
+          <div className="stat-card pink">
+            <p>Active Tasks</p>
+            <h2>08</h2>
+            <span>Tasks in progress</span>
+          </div>
+
+          <div className="stat-card blue">
+            <p>Completed</p>
+            <h2>24</h2>
+            <span>Tasks completed</span>
+          </div>
+        </section>
+
+        <section className="projects-section">
+          <div className="section-heading">
+            <h2>Recent Projects</h2>
+            <button className="text-btn">View all</button>
+          </div>
+
+          <div className="project-grid">
+            <article className="project-card">
+              <div className="project-icon purple-icon">W</div>
+              <span className="status progress">In Progress</span>
+              <h3>Website Redesign</h3>
+              <p>Improve the website interface and user experience.</p>
+              <div className="progress-info">
+                <span>Progress</span>
+                <strong>70%</strong>
+              </div>
+              <div className="progress-bar">
+                <div className="progress-fill purple-fill"></div>
+              </div>
+            </article>
+
+            <article className="project-card">
+              <div className="project-icon pink-icon">M</div>
+              <span className="status review">In Progress</span>
+              <h3>Mobile Application</h3>
+              <p>Build a simple and intuitive mobile experience.</p>
+              <div className="progress-info">
+                <span>Progress</span>
+                <strong>45%</strong>
+              </div>
+              <div className="progress-bar">
+                <div className="progress-fill pink-fill"></div>
+              </div>
+            </article>
+
+            <article className="project-card">
+              <div className="project-icon blue-icon">A</div>
+              <span className="status completed">Completed</span>
+              <h3>Analytics Dashboard</h3>
+              <p>Organize project data into clear visual summaries.</p>
+              <div className="progress-info">
+                <span>Progress</span>
+                <strong>100%</strong>
+              </div>
+              <div className="progress-bar">
+                <div className="progress-fill blue-fill"></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section className="tasks-section">
+          <h2>My Tasks</h2>
+
+          <div className="task-row">
+            <span className="task-dot purple-dot"></span>
+            <div>
+              <h4>Design dashboard layout</h4>
+              <p>Website Redesign</p>
+            </div>
+            <span className="task-label">In Progress</span>
+          </div>
+
+          <div className="task-row">
+            <span className="task-dot pink-dot"></span>
+            <div>
+              <h4>Review project requirements</h4>
+              <p>Mobile Application</p>
+            </div>
+            <span className="task-label">Pending</span>
+          </div>
+
+          <div className="task-row">
+            <span className="task-dot blue-dot"></span>
+            <div>
+              <h4>Prepare project documentation</h4>
+              <p>Analytics Dashboard</p>
+            </div>
+            <span className="task-label">Completed</span>
+          </div>
+        </section>
+      </main>
+    </div>
   )
 }
 
