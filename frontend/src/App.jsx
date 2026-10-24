@@ -92,7 +92,7 @@ const navigation = [
 
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
-  const [projects] = useState(initialProjects);
+  const [projects, setProjects] = useState(initialProjects);
   const [tasks, setTasks] = useState(initialTasks);
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("All projects");
@@ -143,22 +143,38 @@ function App() {
     });
   }, [tasks, search, taskFilter]);
 
-  function addProject(event) {
-    event.preventDefault();
+  
+function addProject(event) {
+  event.preventDefault();
 
-    const name = newProjectName.trim();
-    if (!name) return;
+  const name = newProjectName.trim();
+  const description = newProjectDescription.trim();
 
-    // Temporary frontend-only project creation.
-    // Replace with a backend API call when the API is available.
-    alert(
-      `Project "${name}" is ready to be added when project persistence is implemented.`
-    );
-
-    setNewProjectName("");
-    setNewProjectDescription("");
-    setShowProjectForm(false);
+  if (!name) {
+    alert("Please enter a project name.");
+    return;
   }
+
+  const newProject = {
+    id: Date.now(),
+    name: name,
+    description: description || "No description provided",
+    status: "In Progress",
+    progress: 0,
+    dueDate: "Not set",
+    team: "Unassigned",
+  };
+
+  setProjects((previousProjects) => [
+    ...previousProjects,
+    newProject,
+  ]);
+
+  setNewProjectName("");
+  setNewProjectDescription("");
+  setShowProjectForm(false);
+}
+
 
   function updateTaskStatus(taskId, nextStatus) {
     setTasks((currentTasks) =>
