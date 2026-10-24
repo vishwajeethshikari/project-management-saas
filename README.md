@@ -49,20 +49,16 @@ The project is being developed incrementally. The backend is transitioning from 
 - Added environment-variable examples and Git ignore rules.
 - Committed and pushed the initial Express.js backend setup to the `vishwajeeth-user-auth-security` branch.
 
-### Currently in Progress
+### Authentication Completed
 
-- PostgreSQL connection configuration.
-- User registration and login APIs.
-- Secure password hashing with bcrypt.
-- JWT token generation and verification.
-- Authentication middleware for protected endpoints.
-- Input validation and standardized error handling.
-- Authentication and authorization testing.
+- Express.js authentication endpoints for registration, login, and current-user lookup.
+- bcrypt password hashing, JWT bearer authentication, and request validation.
+- PostgreSQL users migration and isolated automated authentication tests.
 
 ### Planned Features
 
 - Rebuild and test Project CRUD APIs using Express.js.
-- User authentication and account management.
+- User account management and authorization enhancements.
 - Team creation and membership management.
 - Task creation, updating, deletion, and status tracking.
 - Project-task relationships and task assignments.
@@ -138,17 +134,17 @@ Additional files and modules will be added as development progresses.
 
 ## 🔐 Authentication and Security
 
-The authentication module is being developed using Express.js and JWT.
+The authentication module uses Express.js, PostgreSQL, bcrypt, and JWT.
 
-Planned authentication capabilities include:
+Implemented authentication capabilities include:
 
 - User registration with input validation.
 - Secure password hashing using bcrypt.
 - Login with credential verification.
 - JWT access-token generation and verification.
 - Authentication middleware for protected endpoints.
-- Authorization checks for team and project resources.
-- Consistent handling of invalid credentials, missing tokens, and forbidden access.
+- A protected `GET /api/auth/me` current-user profile endpoint.
+- Consistent handling of invalid credentials, missing tokens, and expired tokens.
 
 Passwords will never be stored in plain text. Sensitive configuration, including database credentials and JWT secrets, will be stored in environment variables and excluded from version control.
 
@@ -167,7 +163,7 @@ The planned database entities include:
 - **Activity History:** Records of relevant project and task events.
 - **Notifications:** Updates about assignments and collaboration activity.
 
-Database schemas and relationships will be established as the corresponding modules are implemented.
+The users table is defined in `database/migrations/001_create_users.sql`; other schemas and relationships will be established as their modules are implemented.
 
 ## 🚀 Running the Backend Locally
 
@@ -194,17 +190,18 @@ npm install
 
 ### 3. Configure environment variables
 
-Create a `.env` file inside `backend/` using `.env.example` as a reference.
+Create a `.env` file inside `backend/` using `backend/.env.example` as a reference.
 
 Example configuration:
 
 ```dotenv
 PORT=5000
-DATABASE_URL=postgresql://USERNAME:PASSWORD@localhost:5432/project_management_saas
-JWT_SECRET=replace_with_a_secure_random_secret
+DATABASE_URL=postgresql://<username>:<password>@localhost:5432/project_management_saas
+JWT_SECRET=<generate-a-random-secret-of-at-least-32-characters>
+JWT_EXPIRES_IN=1h
 ```
 
-Replace the example values with your local PostgreSQL credentials and a securely generated JWT secret.
+Replace the placeholders with your local PostgreSQL credentials and a securely generated JWT secret. Alternatively, configure `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` instead of `DATABASE_URL`.
 
 Do not commit `.env` or expose real credentials.
 
@@ -216,7 +213,13 @@ Using pgAdmin or the PostgreSQL command line, create the database:
 CREATE DATABASE project_management_saas;
 ```
 
-The database connection and required tables must be configured before using database-dependent APIs.
+Apply the non-destructive users migration from the repository root:
+
+```bash
+psql -U your_db_user -d project_management_saas -f database/migrations/001_create_users.sql
+```
+
+The database connection and migration must be configured before using auth endpoints.
 
 ### 5. Start the backend
 
@@ -251,7 +254,11 @@ Expected response:
 }
 ```
 
-Authentication and database-dependent endpoints will become available as their implementations are completed.
+Run the authentication tests from `backend/`. They use an in-memory database stub and do not connect to PostgreSQL:
+
+```bash
+npm test
+```
 
 ## 🔗 Planned API Endpoints
 
@@ -261,7 +268,7 @@ The following endpoints describe the intended API design. Endpoints are not cons
 |---|---|---|
 | POST | `/api/auth/register` | Register a user |
 | POST | `/api/auth/login` | Authenticate a user |
-| GET | `/api/users/me` | Retrieve the authenticated user's profile |
+| GET | `/api/auth/me` | Retrieve the authenticated user's profile |
 | POST | `/api/projects` | Create a project |
 | GET | `/api/projects` | Retrieve accessible projects |
 | GET | `/api/projects/:id` | Retrieve a specific project |
