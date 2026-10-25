@@ -106,9 +106,13 @@ test("validates registration fields and minimum password length", async () => {
     method: "POST",
     body: {},
   });
-  const response = await request("/api/auth/register", {
+  const invalidEmail = await request("/api/auth/register", {
     method: "POST",
-    body: { name: "Test", email: "not-an-email", password: "short" },
+    body: { name: "Test", email: "not-an-email", password: "secure-pass-123" },
+  });
+  const shortPassword = await request("/api/auth/register", {
+    method: "POST",
+    body: { name: "Test", email: "valid@example.com", password: "short" },
   });
 
   assert.equal(missingFields.status, 400);
@@ -116,7 +120,16 @@ test("validates registration fields and minimum password length", async () => {
     missingFields.body.errors.some((error) => error.field === "name"),
     true
   );
-  assert.equal(response.status, 400);
+  assert.equal(invalidEmail.status, 400);
+  assert.equal(
+    invalidEmail.body.errors.some((error) => error.field === "email"),
+    true
+  );
+  assert.equal(shortPassword.status, 400);
+  assert.equal(
+    shortPassword.body.errors.some((error) => error.field === "password"),
+    true
+  );
 });
 
 test("rejects duplicate email registrations", async () => {
@@ -150,9 +163,27 @@ test("rejects invalid login credentials with a generic error", async () => {
   assert.equal(response.body.message, "Invalid email or password");
 });
 
+test("rejects login for an unknown email with the generic error", async () => {
+  const response = await request("/api/auth/login", {
+    method: "POST",
+    body: { email: "unknown@example.com", password: "secure-pass-123" },
+  });
+
+  assert.equal(response.status, 401);
+  assert.equal(response.body.message, "Invalid email or password");
+});
+
 test("requires a bearer token and rejects invalid or expired tokens", async () => {
   const missing = await request("/api/auth/me");
   const invalid = await request("/api/auth/me", { token: "not-a-jwt" });
+  const invalidSignatureToken = jwt.sign(
+    { sub: "1" },
+    require("node:crypto").randomBytes(32).toString("hex"),
+    { expiresIn: "1h", algorithm: "HS256" }
+  );
+  const invalidSignature = await request("/api/auth/me", {
+    token: invalidSignatureToken,
+  });
   const expiredToken = jwt.sign({ sub: "1" }, process.env.JWT_SECRET, {
     expiresIn: -1,
     algorithm: "HS256",
@@ -161,6 +192,7 @@ test("requires a bearer token and rejects invalid or expired tokens", async () =
 
   assert.equal(missing.status, 401);
   assert.equal(invalid.status, 401);
+  assert.equal(invalidSignature.status, 401);
   assert.equal(expired.status, 401);
 });
 
@@ -175,4 +207,18 @@ test("returns the authenticated user profile only", async () => {
   assert.equal(response.body.user.id, "1");
   assert.equal(response.body.user.email, "test@example.com");
   assert.equal("password_hash" in response.body.user, false);
+});
+
+test("handles a valid token for a user who no longer exists", async () => {
+  const token = jwt.sign({ sub: "999" }, process.env.JWT_SECRET, {
+    expiresIn: "1h",
+    algorithm: "HS256",
+  });
+  const response = await request("/api/auth/me", { token });
+
+  assert.equal(response.status, 404);
+  assert.deepEqual(response.body, {
+    success: false,
+    message: "User not found",
+  });
 });
