@@ -1,5 +1,4 @@
-
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 const initialProjects = [
@@ -37,6 +36,37 @@ const initialProjects = [
     color: "orange",
   },
 ];
+
+function loadProjects() {
+  try {
+    const savedProjects = localStorage.getItem("projectflow-projects");
+
+    if (!savedProjects) {
+      return initialProjects;
+    }
+
+    const parsedProjects = JSON.parse(savedProjects);
+
+    if (!Array.isArray(parsedProjects)) {
+      return initialProjects;
+    }
+
+    // Fill in fields used by the UI so older saved project records remain compatible.
+    return parsedProjects.map((project) => ({
+      ...project,
+      status: project.status === "In Progress" ? "In progress" : (project.status || "In progress"),
+      description: project.description || "No description provided",
+      owner: project.owner || "AR",
+      ownerName: project.ownerName || "Avni Rajput",
+      dueDate: project.dueDate || "Not set",
+      progress: Number.isFinite(project.progress) ? project.progress : 0,
+      color: project.color || "violet",
+    }));
+  } catch (error) {
+    console.error("Failed to load saved projects:", error);
+    return initialProjects;
+  }
+}
 
 const initialTasks = [
   {
@@ -92,7 +122,7 @@ const navigation = [
 
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
-  const [projects, setProjects] = useState(initialProjects);
+  const [projects, setProjects] = useState(loadProjects);
   const [tasks, setTasks] = useState(initialTasks);
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("All projects");
@@ -100,6 +130,14 @@ function App() {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("projectflow-projects", JSON.stringify(projects));
+    } catch (error) {
+      console.error("Failed to save projects:", error);
+    }
+  }, [projects]);
 
   const activeProjects = projects.filter(
     (project) => project.status === "In progress"
@@ -137,44 +175,39 @@ function App() {
         task.project.toLowerCase().includes(query);
 
       const matchesStatus =
-        taskFilter === "All tasks" || task.status === taskFilter;
+        taskFilter === "All tasks" || task.status ===taskFilter;
 
       return matchesSearch && matchesStatus;
     });
   }, [tasks, search, taskFilter]);
+  function addProject(event) {
+    event.preventDefault();
 
-  
-function addProject(event) {
-  event.preventDefault();
+    const name = newProjectName.trim();
+    const description = newProjectDescription.trim();
 
-  const name = newProjectName.trim();
-  const description = newProjectDescription.trim();
+    if (!name) {
+      alert("Please enter a project name.");
+      return;
+    }
 
-  if (!name) {
-    alert("Please enter a project name.");
-    return;
+    const newProject = {
+      id: Date.now(),
+      name,
+      description: description || "No description provided",
+      status: "In progress",
+      owner: "AR",
+      ownerName: "Avni Rajput",
+      dueDate: "Not set",
+      progress: 0,
+      color: "violet",
+    };
+
+    setProjects((previousProjects) => [...previousProjects, newProject]);
+    setNewProjectName("");
+    setNewProjectDescription("");
+    setShowProjectForm(false);
   }
-
-  const newProject = {
-    id: Date.now(),
-    name: name,
-    description: description || "No description provided",
-    status: "In Progress",
-    progress: 0,
-    dueDate: "Not set",
-    team: "Unassigned",
-  };
-
-  setProjects((previousProjects) => [
-    ...previousProjects,
-    newProject,
-  ]);
-
-  setNewProjectName("");
-  setNewProjectDescription("");
-  setShowProjectForm(false);
-}
-
 
   function updateTaskStatus(taskId, nextStatus) {
     setTasks((currentTasks) =>
@@ -230,7 +263,7 @@ function addProject(event) {
               <span className="metric-icon progress-icon">◷</span>
             </div>
             <div className="metric-value">{activeProjects.length}</div>
-            <div className="metric-note">Currently in progress</div>
+            <div className="metric-note">Currently inprogress</div>
           </article>
 
           <article className="overview-card">
@@ -242,7 +275,7 @@ function addProject(event) {
               {completedTasks.length}
               <span className="metric-total"> / {tasks.length}</span>
             </div>
-            <div className="metric-note">Tasks marked complete</div>
+            <div className="metric-note">Tasks markedcomplete</div>
           </article>
         </div>
 
@@ -297,14 +330,14 @@ function addProject(event) {
                 <span className="summary-dot todo-dot" />
                 <span>To do</span>
                 <strong>
-                  {tasks.filter((task) => task.status === "To do").length}
+                  {tasks.filter((task) => task.status=== "To do").length}
                 </strong>
               </div>
               <div className="task-summary-row">
                 <span className="summary-dot progress-dot" />
                 <span>In progress</span>
                 <strong>
-                  {tasks.filter((task) => task.status === "In progress").length}
+                  {tasks.filter((task) => task.status=== "In progress").length}
                 </strong>
               </div>
               <div className="task-summary-row">
@@ -382,7 +415,7 @@ function addProject(event) {
             <div className="section-heading">
               <div>
                 <h2>New project</h2>
-                <p>Enter the initial details for your project.</p>
+                <p>Enter the initial details for yourproject.</p>
               </div>
               <button
                 className="text-button"
@@ -416,8 +449,7 @@ function addProject(event) {
             </label>
 
             <p className="form-note">
-              Demo mode: project creation is not saved yet because the
-              backend API is not connected.
+              Projects are saved in this browser. A backend API is not connected yet.
             </p>
 
             <button className="primary-button" type="submit">
@@ -449,7 +481,7 @@ function addProject(event) {
               <span className="metric-icon completed-icon">✓</span>
             </div>
             <div className="metric-value">{completedProjects.length}</div>
-            <div className="metric-note">Successfully finished</div>
+            <div className="metric-note">Successfullyfinished</div>
           </article>
         </div>
 
@@ -559,7 +591,7 @@ function addProject(event) {
                   <tr>
                     <td colSpan="5" className="empty-state">
                       <strong>No projects found</strong>
-                      <p>Try another search or status filter.</p>
+                      <p>Try another search or statusfilter.</p>
                       <button
                         type="button"
                         onClick={() => {
@@ -580,7 +612,7 @@ function addProject(event) {
             <span>
               Showing {filteredProjects.length} of {projects.length} projects
             </span>
-            <span>Sample data · Backend not connected</span>
+            <span>Browser storage · Backend not connected</span>
           </div>
         </section>
       </>
@@ -615,7 +647,7 @@ function addProject(event) {
               <span className="metric-icon progress-icon">◷</span>
             </div>
             <div className="metric-value">
-              {tasks.filter((task) => task.status === "In progress").length}
+              {tasks.filter((task) => task.status ==="In progress").length}
             </div>
             <div className="metric-note">Currently being worked on</div>
           </article>
@@ -633,7 +665,7 @@ function addProject(event) {
           <div className="section-heading">
             <div>
               <h2>Task list</h2>
-              <p>Change task status to track progress locally.</p>
+              <p>Change task status to track progresslocally.</p>
             </div>
             <span className="project-count">{filteredTasks.length} tasks</span>
           </div>
@@ -677,7 +709,7 @@ function addProject(event) {
                   <div>
                     <strong
                       className={
-                        task.status === "Completed" ? "task-done" : ""
+                        task.status === "Completed" ?"task-done" : ""
                       }
                     >
                       {task.title}
@@ -770,7 +802,7 @@ function addProject(event) {
           </div>
           <div className="table-footer">
             <span>Member information is sample data.</span>
-            <span>Invitations and permissions are not implemented.</span>
+            <span>Invitations and permissions are notimplemented.</span>
           </div>
         </section>
       </>
