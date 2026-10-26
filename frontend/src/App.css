@@ -933,3 +933,112 @@ button {
     animation: none;
   }
 }
+/* ===== PASTE THIS AT THE VERY BOTTOM OF YOUR App.css ===== */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 11, 46, 0.65);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  animation: pageEnter 0.25s ease both;
+}
+
+.modal-card {
+  background: linear-gradient(145deg, #ffffff, #faf5ff 60%, #f0f9ff);
+  border: 1px solid #c4b5fd;
+  border-radius: 22px;
+  padding: 28px;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: 0 20px 50px rgba(124, 58, 237, 0.25);
+  text-align: left;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  background: linear-gradient(100deg, #272047, #7650d8, #bd398e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.close-btn {
+  border: none;
+  background: #f3e8ff;
+  color: #6d28d9;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.close-btn:hover {
+  background: #e9d5ff;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4c426f;
+  margin-bottom: 6px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #d8b4fe;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 13px;
+  color: #252344;
+  outline: none;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.secondary-btn {
+  border: 1px solid #d8b4fe;
+  background: white;
+  color: #6d28d9;
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-weight: 600;
+}
+
+.task-row {
+  cursor: pointer;
+}
+
+.task-done h4 {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
