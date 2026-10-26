@@ -1,6 +1,4 @@
 
-require("dotenv").config();
-
 const { Pool } = require("pg");
 
 const productionMarker = /(^|[-_.])(prod|production)([-_.]|$)/i;
@@ -125,4 +123,9 @@ async function testDatabase() {
   }
 }
 
-testDatabase();
+if (require.main === module) {
+  require("dotenv").config();
+  testDatabase();
+}
+
+module.exports = { getTestDatabaseUrl, testDatabase };

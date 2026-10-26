@@ -59,12 +59,15 @@ POST /api/auth/register
 Create a user account.
 
 Request body
+```json
 {
   "name": "Example User",
   "email": "user@example.com",
   "password": "replace-with-a-secure-password"
 }
+```
 Success: 201 Created
+```json
 {
   "success": true,
   "user": {
@@ -75,16 +78,20 @@ Success: 201 Created
     "updatedAt": "2026-01-01T12:00:00.000Z"
   }
 }
+```
 Emails are trimmed and normalized to lowercase. Invalid or missing fields return 400 Bad Request; an email already in use returns 409 Conflict.
 POST /api/auth/login
 Authenticate a registered user and receive a JWT.
 
 Request body
+```json
 {
   "email": "user@example.com",
   "password": "replace-with-a-secure-password"
 }
+```
 Success: 200 OK
+```json
 {
   "success": true,
   "token": "<JWT_FROM_LOGIN>",
@@ -96,6 +103,7 @@ Success: 200 OK
     "updatedAt": "2026-01-01T12:00:00.000Z"
   }
 }
+```
 Invalid credentials return a generic 401 Unauthorized response. Token expiration is configured by JWT_EXPIRES_IN and defaults to 1h.
 GET /api/auth/me
 Return the current authenticated user's safe profile.
@@ -105,9 +113,11 @@ Authorization: Bearer <token>
 Success returns the user's id, name, email, createdAt, and updatedAt. Missing, invalid, or expired tokens return 401 Unauthorized. If the token refers to a user who no longer exists, the endpoint returns 404 Not Found.
 Reuse the middleware
 Other backend modules can protect a route with the reusable middleware. It verifies token identity, but it does not decide whether the user may access a particular project or task; each module must enforce its own resource-level authorization.
+```js
 const authenticateToken = require("../middleware/authenticateToken");
 
 router.get("/protected-route", authenticateToken, handler);
+```
 🧰 Tech stack
 <p>
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white" />
@@ -136,7 +146,15 @@ From the backend/ directory:
 npm install
 2. Create your local environment file
 Copy-Item .env.example .env
-Set local values in .env. Configure either DATABASE_URL or the separate DB_HOST, DB_PORT, DB_NAME, DB_USER, and DB_PASSWORD variables. Set JWT_SECRET to a securely generated random value of at least 32 bytes. JWT_EXPIRES_IN defaults to 1h; supported examples include 15m and 1d.
+Set local values in `.env`. Configure either `DATABASE_URL` or the separate
+`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` variables. When
+using separate settings, `DB_USER` is required; host, port, and database name
+default to `localhost`, `5432`, and `project_management_saas`. Set `JWT_SECRET`
+to a securely generated random value of at least 32 bytes. `JWT_EXPIRES_IN`
+defaults to `1h` and accepts a positive duration with an `s`, `m`, `h`, `d`,
+`w`, or `y` suffix, such as `15m` or `1d`. The server validates configuration
+before starting and reports missing or invalid setting names without printing
+secret values.
 
 Never commit .env or put real credentials in documentation.
 3. Apply the users migration
