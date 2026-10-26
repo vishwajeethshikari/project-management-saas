@@ -139,9 +139,20 @@ function App() {
     }
   }, [projects]);
 
-  const activeProjects = projects.filter(
-    (project) => project.status === "In progress"
+  const activeProjects = useMemo(
+    () => projects.filter((project) => project.status === "In progress"),
+    [projects]
   );
+  const filteredDashboardProjects = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return activeProjects.filter(
+      (project) =>
+        project.name.toLowerCase().includes(query) ||
+        project.description.toLowerCase().includes(query) ||
+        project.ownerName.toLowerCase().includes(query)
+    );
+  }, [activeProjects, search]);
   const completedProjects = projects.filter(
     (project) => project.status === "Completed"
   );
@@ -175,7 +186,7 @@ function App() {
         task.project.toLowerCase().includes(query);
 
       const matchesStatus =
-        taskFilter === "All tasks" || task.status ===taskFilter;
+        taskFilter === "All tasks" || task.status === taskFilter;
 
       return matchesSearch && matchesStatus;
     });
@@ -295,8 +306,21 @@ function App() {
               </button>
             </div>
 
+            <div className="project-toolbar">
+              <label className="search-box">
+                <span aria-hidden="true">⌕</span>
+                <input
+                  type="search"
+                  placeholder="Search active projects..."
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  aria-label="Search active projects"
+                />
+              </label>
+            </div>
+
             <div className="dashboard-project-list">
-              {activeProjects.map((project) => (
+              {filteredDashboardProjects.map((project) => (
                 <article className="dashboard-project" key={project.id}>
                   <span className={`project-marker ${project.color}`} />
                   <div className="dashboard-project-info">
@@ -314,6 +338,15 @@ function App() {
                   </div>
                 </article>
               ))}
+              {filteredDashboardProjects.length === 0 && (
+                <div className="empty-state">
+                  <strong>No active projects found</strong>
+                  <p>Try another project name, description, or owner.</p>
+                  <button type="button" onClick={() => setSearch("")}>
+                    Clear search
+                  </button>
+                </div>
+              )}
             </div>
           </section>
 
@@ -330,14 +363,14 @@ function App() {
                 <span className="summary-dot todo-dot" />
                 <span>To do</span>
                 <strong>
-                  {tasks.filter((task) => task.status=== "To do").length}
+                  {tasks.filter((task) => task.status === "To do").length}
                 </strong>
               </div>
               <div className="task-summary-row">
                 <span className="summary-dot progress-dot" />
                 <span>In progress</span>
                 <strong>
-                  {tasks.filter((task) => task.status=== "In progress").length}
+                  {tasks.filter((task) => task.status === "In progress").length}
                 </strong>
               </div>
               <div className="task-summary-row">
@@ -647,7 +680,7 @@ function App() {
               <span className="metric-icon progress-icon">◷</span>
             </div>
             <div className="metric-value">
-              {tasks.filter((task) => task.status ==="In progress").length}
+              {tasks.filter((task) => task.status === "In progress").length}
             </div>
             <div className="metric-note">Currently being worked on</div>
           </article>
