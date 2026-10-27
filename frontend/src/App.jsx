@@ -123,7 +123,15 @@ const navigation = [
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [projects, setProjects] = useState(loadProjects);
-  const [tasks, setTasks] = useState(initialTasks);
+  const [tasks, setTasks] = useState(() => {
+  try {
+    const savedTasks = localStorage.getItem("projectflow-tasks");
+    return savedTasks ? JSON.parse(savedTasks) : initialTasks;
+  } catch (error) {
+    console.error("Failed to load tasks:", error);
+    return initialTasks;
+  }
+});
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("All projects");
   const [taskFilter, setTaskFilter] = useState("All tasks");
@@ -131,13 +139,13 @@ function App() {
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("projectflow-projects", JSON.stringify(projects));
-    } catch (error) {
-      console.error("Failed to save projects:", error);
-    }
-  }, [projects]);
+ useEffect(() => {
+  try {
+    localStorage.setItem("projectflow-tasks", JSON.stringify(tasks));
+  } catch (error) {
+    console.error("Failed to save tasks:", error);
+  }
+}, [tasks]);
 
   const activeProjects = useMemo(
     () => projects.filter((project) => project.status === "In progress"),
