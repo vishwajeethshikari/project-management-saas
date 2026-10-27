@@ -1,64 +1,85 @@
+# Express API Backend
+
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:111827,55:0f766e,100:0284c7&height=190&section=header&text=Express%20API%20Backend&fontSize=38&fontColor=ffffff&fontAlignY=36&desc=Authentication%20%7C%20JWT%20%7C%20PostgreSQL&descAlignY=59&descSize=16" alt="Express API Backend banner" width="100%" />
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0F172A,50:0F766E,100:0284C7&height=200&section=header&text=Secure%20Authentication%20API&fontSize=34&fontColor=FFFFFF&fontAlignY=36&desc=Express.js%20%7C%20PostgreSQL%20%7C%20JWT&descAlignY=58&descSize=16" width="100%" alt="Secure Authentication API banner" />
 </p>
 
 <p align="center">
-  <strong>Authentication and database foundations for the Project Management & Team Collaboration SaaS.</strong>
+  <strong>A secure authentication foundation for the Project Management & Team Collaboration SaaS.</strong>
   <br />
-  A focused backend module for account registration, secure login, token-based authentication, and the current-user profile API.
+  User registration · Password hashing · JWT authentication · Profile management
 </p>
 
 <p align="center">
-  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white" />
-  <img alt="Express" src="https://img.shields.io/badge/Express.js-REST%20API-000000?logo=express&logoColor=white" />
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-database-4169E1?logo=postgresql&logoColor=white" />
-  <img alt="JWT" src="https://img.shields.io/badge/Auth-JWT-7C3AED?logo=jsonwebtokens&logoColor=white" />
-  <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ES6%2B-F7DF1E?logo=javascript&logoColor=111827" />
+  <img src="https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white" alt="Node.js 18+" />
+  <img src="https://img.shields.io/badge/Express.js-REST%20API-000000?logo=express&logoColor=white" alt="Express.js" />
+  <img src="https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Authentication-JWT-7C3AED?logo=jsonwebtokens&logoColor=white" alt="JWT" />
+  <img src="https://img.shields.io/badge/Language-JavaScript-F7DF1E?logo=javascript&logoColor=111827" alt="JavaScript" />
 </p>
 
-<p align="center">
-  <img src="https://skillicons.dev/icons?i=nodejs,express,postgres,js&theme=dark" alt="Node.js, Express, PostgreSQL, and JavaScript technologies" />
-</p>
+## Overview
 
-📌 About this module
-This directory contains the Express.js backend work for User Authentication and Security in the Project Management & Team Collaboration SaaS. It is intended to remain a focused module within the shared repository; it does not replace the repository's root README or describe every teammate's work.
+This module implements the authentication and database foundations of the **Project Management & Team Collaboration SaaS**.
 
-The API uses PostgreSQL for user persistence, bcrypt for password hashing, and JSON Web Tokens (JWTs) for authenticated requests. It is designed so other backend routes can reuse the authentication middleware while implementing their own resource-level authorization.
-✨ Authentication features
-Capability	Endpoint / component	Purpose
-Register an account	POST /api/auth/register	Validate details, normalize email, hash password, and create a user
-Log in	POST /api/auth/login	Verify credentials and return a signed JWT
-Verify authenticated requests	authenticateToken middleware	Validate bearer-token signature and expiry; attach the verified user ID to req.user.id
-Get current user	GET /api/auth/me	Return the authenticated user's safe profile
-Store users	PostgreSQL users table	Persist user data with a unique, case-insensitive email index
-Test the authentication flow	npm test	Run API tests using an isolated in-memory query stub, without connecting to PostgreSQL
+It provides the API functionality required to register users, authenticate accounts, verify JWT-protected requests, and retrieve the current user's profile.
 
+The backend uses Express.js for HTTP routing, PostgreSQL for persistent user records, bcrypt for password hashing, and JSON Web Tokens for authenticated requests.
 
-Response safety: Passwords and password hashes are not returned in API responses. Registration passwords must be at least 8 characters and no more than 72 UTF-8 bytes.
-🧭 Request flow
+The module is designed to support integration with other backend resources. Authentication establishes user identity; individual modules must enforce authorization for their own projects, tasks, teams, and other resources.
+
+## Features
+
+| Feature | Endpoint or component | Description |
+|---|---|---|
+| User registration | `POST /api/auth/register` | Validates input, normalizes email, hashes the password, and creates an account |
+| User login | `POST /api/auth/login` | Verifies credentials and returns a signed JWT |
+| Token verification | `authenticateToken` middleware | Verifies token signature and expiration |
+| Current-user profile | `GET /api/auth/me` | Returns the authenticated user's safe profile |
+| User persistence | PostgreSQL `users` table | Stores user records with case-insensitive email uniqueness |
+| Automated testing | `npm test` | Tests the API using an isolated in-memory query stub |
+
+### Security principles
+
+- Passwords are stored as bcrypt hashes, not plaintext.
+- Password hashes are excluded from API responses.
+- JWT secrets and database credentials are provided through environment variables.
+- Login failures use generic responses.
+- A valid token proves identity, not permission to access every resource.
+- Resource-level authorization remains the responsibility of each feature module.
+
+Registration passwords must contain at least 8 characters and must not exceed 72 UTF-8 bytes.
+
+## Architecture
+
 ```mermaid
 flowchart TD
-    A[Client / React app] --> B[Express Auth Routes]
-    B --> C[Request validation]
-    C --> D[Auth controller and service]
+    A[React Frontend or API Client] --> B[Express Authentication Routes]
+    B --> C[Input Validation]
+    C --> D[Authentication Controller and Service]
     D --> E{Operation}
-    E -->|Register| F[bcrypt password hash]
-    E -->|Login| G[bcrypt password verification]
-    F --> H[PostgreSQL users table]
+    E -->|Register| F[bcrypt Password Hashing]
+    E -->|Login| G[Credential Verification]
+    F --> H[(PostgreSQL)]
     G --> H
-    G --> I[Signed JWT returned to client]
-    I --> J[Protected request with Bearer token]
-    J --> K[JWT authentication middleware]
-    K --> L[GET /api/auth/me]
+    G --> I[Signed JWT]
+    I --> J[Protected API Request]
+    J --> K[JWT Authentication Middleware]
+    K --> L[Current User Endpoint]
     L --> H
-    H --> M[Safe user profile response]
+    H --> M[Safe User Profile]
 ```
-🔌 API reference
-The API listens on http://localhost:5000 by default. All endpoints use JSON.
-POST /api/auth/register
-Create a user account.
 
-Request body
+## API reference
+
+The default API base URL is `http://localhost:5000`. Endpoints use JSON.
+
+### 1. Register an account
+
+`POST /api/auth/register`
+
+Request:
+
 ```json
 {
   "name": "Example User",
@@ -66,7 +87,9 @@ Request body
   "password": "replace-with-a-secure-password"
 }
 ```
-Success: 201 Created
+
+Successful response — `201 Created`:
+
 ```json
 {
   "success": true,
@@ -79,18 +102,29 @@ Success: 201 Created
   }
 }
 ```
-Emails are trimmed and normalized to lowercase. Invalid or missing fields return 400 Bad Request; an email already in use returns 409 Conflict.
-POST /api/auth/login
-Authenticate a registered user and receive a JWT.
 
-Request body
+Expected error responses:
+
+- `400 Bad Request` — Missing or invalid input.
+- `409 Conflict` — Email address already registered.
+
+Email addresses are trimmed and normalized to lowercase.
+
+### 2. Log in
+
+`POST /api/auth/login`
+
+Request:
+
 ```json
 {
   "email": "user@example.com",
   "password": "replace-with-a-secure-password"
 }
 ```
-Success: 200 OK
+
+Successful response — `200 OK`:
+
 ```json
 {
   "success": true,
@@ -104,93 +138,193 @@ Success: 200 OK
   }
 }
 ```
-Invalid credentials return a generic 401 Unauthorized response. Token expiration is configured by JWT_EXPIRES_IN and defaults to 1h.
-GET /api/auth/me
-Return the current authenticated user's safe profile.
 
-Request header
-Authorization: Bearer <token>
-Success returns the user's id, name, email, createdAt, and updatedAt. Missing, invalid, or expired tokens return 401 Unauthorized. If the token refers to a user who no longer exists, the endpoint returns 404 Not Found.
-Reuse the middleware
-Other backend modules can protect a route with the reusable middleware. It verifies token identity, but it does not decide whether the user may access a particular project or task; each module must enforce its own resource-level authorization.
-```js
+Invalid credentials return `401 Unauthorized` with a generic error message.
+
+Token expiration is controlled by `JWT_EXPIRES_IN` and defaults to `1h`.
+
+### 3. Retrieve the current user
+
+`GET /api/auth/me`
+
+Request header:
+
+```http
+Authorization: Bearer <JWT_FROM_LOGIN>
+```
+
+Returns the authenticated user's safe profile, including ID, name, email, and timestamps.
+
+Possible errors:
+
+- `401 Unauthorized` — Token missing, invalid, or expired.
+- `404 Not Found` — The token refers to a user who no longer exists.
+
+### 4. Protect another route
+
+Reuse the authentication middleware in other backend modules:
+
+```javascript
 const authenticateToken = require("../middleware/authenticateToken");
 
 router.get("/protected-route", authenticateToken, handler);
 ```
-🧰 Tech stack
-<p>
-  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white" />
-  <img alt="Express.js" src="https://img.shields.io/badge/Express.js-API-000000?logo=express&logoColor=white" />
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-Data%20storage-4169E1?logo=postgresql&logoColor=white" />
-  <img alt="bcrypt" src="https://img.shields.io/badge/bcrypt-Password%20hashing-5B8C5A" />
-  <img alt="JWT" src="https://img.shields.io/badge/JWT-Token%20authentication-7C3AED?logo=jsonwebtokens&logoColor=white" />
-  <img alt="Zod" src="https://img.shields.io/badge/Zod-Request%20validation-3068B7" />
-  <img alt="npm" src="https://img.shields.io/badge/npm-dependencies-CB3837?logo=npm&logoColor=white" />
+
+The middleware verifies the user's identity and attaches the verified user ID to `req.user.id`. The route must still enforce the appropriate resource-level permissions.
+
+## Technology stack
+
+<p align="center">
+  <img src="https://skillicons.dev/icons?i=nodejs,express,postgres,js&theme=dark" alt="Node.js, Express.js, PostgreSQL, and JavaScript" />
 </p>
 
-- Node.js 18 or newer and Express.js for the REST API.
-- PostgreSQL for user persistence.
-- bcrypt for secure password hashing and verification.
-- jsonwebtoken for signing and verifying tokens.
-- Zod for request validation.
-- npm for dependency and script management.
-These dependencies should match backend/package.json; check that file if anything differs.
-⚙️ Local setup
-Prerequisites
+| Technology | Purpose |
+|---|---|
+| Node.js 18+ | JavaScript runtime |
+| Express.js | REST API and routing |
+| PostgreSQL | Persistent user storage |
+| bcrypt | Password hashing and verification |
+| jsonwebtoken | JWT signing and verification |
+| Zod | Request validation |
+| npm | Dependency management |
+
+Check `backend/package.json` to confirm the installed dependency versions.
+
+## Getting started
+
+### Prerequisites
+
 - Node.js 18 or newer
 - npm
 - PostgreSQL
-1. Install dependencies
-From the backend/ directory:
+- Git
+
+### 1. Install dependencies
+
+Open a terminal in the `backend/` directory:
+
+```bash
 npm install
-2. Create your local environment file
+```
+
+### 2. Configure environment variables
+
+In PowerShell, create a local environment file:
+
+```powershell
 Copy-Item .env.example .env
-Set local values in `.env`. Configure either `DATABASE_URL` or the separate
-`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` variables. When
-using separate settings, `DB_USER` is required; host, port, and database name
-default to `localhost`, `5432`, and `project_management_saas`. Set `JWT_SECRET`
-to a securely generated random value of at least 32 bytes. `JWT_EXPIRES_IN`
-defaults to `1h` and accepts a positive duration with an `s`, `m`, `h`, `d`,
-`w`, or `y` suffix, such as `15m` or `1d`. The server validates configuration
-before starting and reports missing or invalid setting names without printing
-secret values.
+```
 
-Never commit .env or put real credentials in documentation.
-3. Apply the users migration
-Create the PostgreSQL database if it does not already exist. Then run this command from the repository root, adjusting the database user and database name for your local setup:
+Configure the variables in `.env`. Depending on your setup, use either `DATABASE_URL` or the individual database settings:
+
+```env
+PORT=5000
+NODE_ENV=development
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=project_management_saas
+DB_USER=your_db_user
+DB_PASSWORD=your_local_password
+
+JWT_SECRET=replace-with-a-secure-random-secret
+JWT_EXPIRES_IN=1h
+```
+
+Generate a secure JWT secret rather than using the example value. The application expects a secret of at least 32 bytes.
+
+When using separate database settings, `DB_USER` is required; host, port, and database name have defaults.
+
+**Never commit `.env` or real credentials to GitHub.**
+
+### 3. Create the database and apply the migration
+
+Create the PostgreSQL database if it does not already exist.
+
+From the repository root, run the existing migration:
+
+```bash
 psql -U your_db_user -d project_management_saas -f database/migrations/001_create_users.sql
-The migration uses CREATE TABLE IF NOT EXISTS and a unique case-insensitive email index. It does not reset or delete existing data.
-4. Start the API
-From backend/:
-npm run dev
-For a non-development start:
-npm start
-The default base URL is http://localhost:5000.
-🧪 Testing
-From backend/, run:
-npm test
-The API tests replace the shared PostgreSQL pool query function with an isolated in-memory stub. They do not connect to PostgreSQL or use production data.
-Manual database connectivity check
-src/config/testDb.js is a separate manual check; it is not used by the automated test suite. It requires a dedicated TEST_DATABASE_URL and must not fall back to DATABASE_URL or application database settings.
+```
 
-Run it from backend/ only after configuring TEST_DATABASE_URL for a dedicated test database whose database name contains test:
+Replace `your_db_user` with your actual local database username.
+
+The migration creates the users table and a case-insensitive unique email index. It uses `CREATE TABLE IF NOT EXISTS` and is intended not to reset existing data.
+
+### 4. Start the development server
+
+From `backend/`:
+
+```bash
+npm run dev
+```
+
+For a non-development start:
+
+```bash
+npm start
+```
+
+The default base URL is:
+
+`http://localhost:5000`
+
+## Testing
+
+Run the automated API tests from `backend/`:
+
+```bash
+npm test
+```
+
+The test suite replaces the shared PostgreSQL query function with an isolated in-memory stub. It does not connect to PostgreSQL or use production data.
+
+### Optional database connectivity check
+
+The manual connectivity check is separate from the automated tests.
+
+Configure `TEST_DATABASE_URL` to point to a dedicated test database whose name contains `test`, then run:
+
+```bash
 node src/config/testDb.js
-The check refuses missing configuration, production-identified database names or hosts, application-database targets, and production mode. It performs only a read-only SELECT and must not create, delete, truncate, or modify tables. Never point it at a production database.
-🔐 Security notes
-- Store passwords only as bcrypt hashes.
-- Keep JWT_SECRET and database credentials in local environment variables.
-- Do not commit .env, access tokens, passwords, or other secrets.
-- Treat a valid JWT as proof of identity, not as proof of permission to access every resource.
-- Enforce project-, task-, and team-level authorization in the relevant modules before exposing protected operations.
-- Use generic login errors so responses do not reveal whether a particular email is registered.
-🤝 Scope and collaboration
-This README documents the Express.js authentication and database-configuration work in this backend directory. It is not a description of every module or every contributor's branch. Other team members can reuse the exported authentication middleware when integrating their routes, and must implement authorization for the resources they own.
-🛣️ Next steps
-- Extend authentication tests as new cases are added.
-- Integrate authentication middleware with protected project and task routes after coordinating with their owners.
-- Add resource-level authorization checks.
-- Keep API examples and setup steps synchronized with the actual implementation.
+```
+
+Run this command only from `backend/`, and only after verifying the test database configuration. The check is designed to reject unsafe database targets and perform a read-only query. Never point it at a production database.
+
+## Security checklist
+
+- [ ] Store passwords only as bcrypt hashes.
+- [ ] Keep database credentials and `JWT_SECRET` in environment variables.
+- [ ] Exclude `.env` files and credentials from Git.
+- [ ] Validate request input on the server.
+- [ ] Use generic login errors.
+- [ ] Verify JWT signatures and expiration on protected routes.
+- [ ] Enforce project-, task-, and team-level authorization in the relevant modules.
+- [ ] Never treat a valid JWT as unrestricted access to all resources.
+- [ ] Use a dedicated test database for database connectivity checks.
+
+## Integration with the frontend and other modules
+
+The authentication API is intended to provide the identity foundation for the Project Management & Team Collaboration SaaS.
+
+Other modules can reuse the authentication middleware when they need to identify a logged-in user. Each module must independently check whether that user has permission to access the requested project, task, team, or other resource.
+
+Coordinate endpoint contracts and authentication requirements with the frontend and other backend contributors before integration.
+
+## Development roadmap
+
+Potential next improvements include:
+
+- Expand automated authentication tests.
+- Integrate authentication middleware with protected project and task routes.
+- Implement resource-level authorization checks.
+- Document additional API endpoints as they are implemented.
+- Keep environment setup instructions aligned with the actual codebase.
+
+## Project scope
+
+This README documents the Express.js authentication and database-configuration module only. It does not describe every feature or contributor's work across the shared repository.
+
 <p align="center">
-  <sub>Built as part of the Project Management & Team Collaboration SaaS · Express.js · PostgreSQL</sub>
+  <sub>Project Management & Team Collaboration SaaS · Express.js · PostgreSQL · JWT</sub>
 </p>
