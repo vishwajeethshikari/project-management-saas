@@ -124,14 +124,39 @@ function App() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [projects, setProjects] = useState(loadProjects);
   const [tasks, setTasks] = useState(() => {
-  try {
-    const savedTasks = localStorage.getItem("projectflow-tasks");
-    return savedTasks ? JSON.parse(savedTasks) : initialTasks;
-  } catch (error) {
-    console.error("Failed to load tasks:", error);
-    return initialTasks;
-  }
-});
+    try {
+      const savedTasks = localStorage.getItem("projectflow-tasks");
+
+      if (!savedTasks) {
+        return initialTasks;
+      }
+
+      const parsedTasks = JSON.parse(savedTasks);
+
+      if (!Array.isArray(parsedTasks)) {
+        return initialTasks;
+      }
+
+      // Keep older saved task records compatible with the current UI.
+      return parsedTasks.map((task, index) => ({
+        ...task,
+        id: task.id ?? index + 1,
+        title: task.title || "Untitled task",
+        project: task.project || "Unassigned project",
+        priority: ["Low", "Medium", "High"].includes(task.priority)
+          ? task.priority
+          : "Medium",
+        status: ["To do", "In progress", "Completed"].includes(task.status)
+          ? task.status
+          : "To do",
+        dueDate: task.dueDate || "Not set",
+        assignee: task.assignee || "AR",
+      }));
+    } catch (error) {
+      console.error("Failed to load saved tasks:", error);
+      return initialTasks;
+    }
+  });
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("All projects");
   const [taskFilter, setTaskFilter] = useState("All tasks");
@@ -232,6 +257,20 @@ function App() {
     setTasks((currentTasks) =>
       currentTasks.map((task) =>
         task.id === taskId ? { ...task, status: nextStatus } : task
+      )
+    );
+  }
+
+  function updateTaskField(taskId, field, value) {
+    const editableFields = ["priority", "dueDate"];
+
+    if (!editableFields.includes(field)) {
+      return;
+    }
+
+    setTasks((currentTasks) =>
+      currentTasks.map((task) =>
+        task.id === taskId ? { ...task, [field]: value } : task
       )
     );
   }
@@ -759,11 +798,35 @@ function App() {
                   </div>
                 </div>
 
-                <span className={`priority-pill priority-${task.priority.toLowerCase()}`}>
-                  {task.priority}
-                </span>
+                <label className="task-edit-field">
+                  <span className="visually-hidden">Priority for {task.title}</span>
+                  <select
+                    className={`priority-pill priority-${task.priority.toLowerCase()}`}
+                    value={task.priority}
+                    onChange={(event) =>
+                      updateTaskField(task.id, "priority", event.target.value)
+                    }
+                    aria-label={`Priority for ${task.title}`}
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </label>
 
-                <span className="due-date">{task.dueDate}</span>
+                <label className="task-edit-field">
+                  <span className="visually-hidden">Due date for {task.title}</span>
+                  <input
+                    className="due-date task-due-date-input"
+                    type="text"
+                    value={task.dueDate}
+                    onChange={(event) =>
+                      updateTaskField(task.id, "dueDate", event.target.value)
+                    }
+                    placeholder="e.g. Oct 30, 2026"
+                    aria-label={`Due date for ${task.title}`}
+                  />
+                </label>
 
                 <select
                   className="task-status-select"
@@ -788,7 +851,7 @@ function App() {
             )}
           </div>
           <div className="table-footer">
-            <span>Task status changes are temporary.</span>
+            <span>Task updates are saved in this browser.</span>
             <span>Backend not connected</span>
           </div>
         </section>
