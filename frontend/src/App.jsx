@@ -123,40 +123,7 @@ const navigation = [
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [projects, setProjects] = useState(loadProjects);
-  const [tasks, setTasks] = useState(() => {
-    try {
-      const savedTasks = localStorage.getItem("projectflow-tasks");
-
-      if (!savedTasks) {
-        return initialTasks;
-      }
-
-      const parsedTasks = JSON.parse(savedTasks);
-
-      if (!Array.isArray(parsedTasks)) {
-        return initialTasks;
-      }
-
-      // Keep older saved task records compatible with the current UI.
-      return parsedTasks.map((task, index) => ({
-        ...task,
-        id: task.id ?? index + 1,
-        title: task.title || "Untitled task",
-        project: task.project || "Unassigned project",
-        priority: ["Low", "Medium", "High"].includes(task.priority)
-          ? task.priority
-          : "Medium",
-        status: ["To do", "In progress", "Completed"].includes(task.status)
-          ? task.status
-          : "To do",
-        dueDate: task.dueDate || "Not set",
-        assignee: task.assignee || "AR",
-      }));
-    } catch (error) {
-      console.error("Failed to load saved tasks:", error);
-      return initialTasks;
-    }
-  });
+  const [tasks, setTasks] = useState(initialTasks);
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("All projects");
   const [taskFilter, setTaskFilter] = useState("All tasks");
@@ -164,28 +131,17 @@ function App() {
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
 
- useEffect(() => {
-  try {
-    localStorage.setItem("projectflow-tasks", JSON.stringify(tasks));
-  } catch (error) {
-    console.error("Failed to save tasks:", error);
-  }
-}, [tasks]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("projectflow-projects", JSON.stringify(projects));
+    } catch (error) {
+      console.error("Failed to save projects:", error);
+    }
+  }, [projects]);
 
-  const activeProjects = useMemo(
-    () => projects.filter((project) => project.status === "In progress"),
-    [projects]
+  const activeProjects = projects.filter(
+    (project) => project.status === "In progress"
   );
-  const filteredDashboardProjects = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return activeProjects.filter(
-      (project) =>
-        project.name.toLowerCase().includes(query) ||
-        project.description.toLowerCase().includes(query) ||
-        project.ownerName.toLowerCase().includes(query)
-    );
-  }, [activeProjects, search]);
   const completedProjects = projects.filter(
     (project) => project.status === "Completed"
   );
@@ -219,7 +175,7 @@ function App() {
         task.project.toLowerCase().includes(query);
 
       const matchesStatus =
-        taskFilter === "All tasks" || task.status === taskFilter;
+        taskFilter === "All tasks" || task.status ===taskFilter;
 
       return matchesSearch && matchesStatus;
     });
@@ -257,20 +213,6 @@ function App() {
     setTasks((currentTasks) =>
       currentTasks.map((task) =>
         task.id === taskId ? { ...task, status: nextStatus } : task
-      )
-    );
-  }
-
-  function updateTaskField(taskId, field, value) {
-    const editableFields = ["priority", "dueDate"];
-
-    if (!editableFields.includes(field)) {
-      return;
-    }
-
-    setTasks((currentTasks) =>
-      currentTasks.map((task) =>
-        task.id === taskId ? { ...task, [field]: value } : task
       )
     );
   }
@@ -353,21 +295,8 @@ function App() {
               </button>
             </div>
 
-            <div className="project-toolbar">
-              <label className="search-box">
-                <span aria-hidden="true">⌕</span>
-                <input
-                  type="search"
-                  placeholder="Search active projects..."
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  aria-label="Search active projects"
-                />
-              </label>
-            </div>
-
             <div className="dashboard-project-list">
-              {filteredDashboardProjects.map((project) => (
+              {activeProjects.map((project) => (
                 <article className="dashboard-project" key={project.id}>
                   <span className={`project-marker ${project.color}`} />
                   <div className="dashboard-project-info">
@@ -385,15 +314,6 @@ function App() {
                   </div>
                 </article>
               ))}
-              {filteredDashboardProjects.length === 0 && (
-                <div className="empty-state">
-                  <strong>No active projects found</strong>
-                  <p>Try another project name, description, or owner.</p>
-                  <button type="button" onClick={() => setSearch("")}>
-                    Clear search
-                  </button>
-                </div>
-              )}
             </div>
           </section>
 
@@ -410,14 +330,14 @@ function App() {
                 <span className="summary-dot todo-dot" />
                 <span>To do</span>
                 <strong>
-                  {tasks.filter((task) => task.status === "To do").length}
+                  {tasks.filter((task) => task.status=== "To do").length}
                 </strong>
               </div>
               <div className="task-summary-row">
                 <span className="summary-dot progress-dot" />
                 <span>In progress</span>
                 <strong>
-                  {tasks.filter((task) => task.status === "In progress").length}
+                  {tasks.filter((task) => task.status=== "In progress").length}
                 </strong>
               </div>
               <div className="task-summary-row">
@@ -727,7 +647,7 @@ function App() {
               <span className="metric-icon progress-icon">◷</span>
             </div>
             <div className="metric-value">
-              {tasks.filter((task) => task.status === "In progress").length}
+              {tasks.filter((task) => task.status ==="In progress").length}
             </div>
             <div className="metric-note">Currently being worked on</div>
           </article>
@@ -798,35 +718,11 @@ function App() {
                   </div>
                 </div>
 
-                <label className="task-edit-field">
-                  <span className="visually-hidden">Priority for {task.title}</span>
-                  <select
-                    className={`priority-pill priority-${task.priority.toLowerCase()}`}
-                    value={task.priority}
-                    onChange={(event) =>
-                      updateTaskField(task.id, "priority", event.target.value)
-                    }
-                    aria-label={`Priority for ${task.title}`}
-                  >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                  </select>
-                </label>
+                <span className={`priority-pill priority-${task.priority.toLowerCase()}`}>
+                  {task.priority}
+                </span>
 
-                <label className="task-edit-field">
-                  <span className="visually-hidden">Due date for {task.title}</span>
-                  <input
-                    className="due-date task-due-date-input"
-                    type="text"
-                    value={task.dueDate}
-                    onChange={(event) =>
-                      updateTaskField(task.id, "dueDate", event.target.value)
-                    }
-                    placeholder="e.g. Oct 30, 2026"
-                    aria-label={`Due date for ${task.title}`}
-                  />
-                </label>
+                <span className="due-date">{task.dueDate}</span>
 
                 <select
                   className="task-status-select"
@@ -851,7 +747,7 @@ function App() {
             )}
           </div>
           <div className="table-footer">
-            <span>Task updates are saved in this browser.</span>
+            <span>Task status changes are temporary.</span>
             <span>Backend not connected</span>
           </div>
         </section>
