@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
+const STORAGE_KEYS = {
+  projects: "projectflow-projects",
+  tasks: "projectflow-tasks",
+};
+
 const initialProjects = [
   {
     id: 1,
@@ -36,37 +41,6 @@ const initialProjects = [
     color: "orange",
   },
 ];
-
-function loadProjects() {
-  try {
-    const savedProjects = localStorage.getItem("projectflow-projects");
-
-    if (!savedProjects) {
-      return initialProjects;
-    }
-
-    const parsedProjects = JSON.parse(savedProjects);
-
-    if (!Array.isArray(parsedProjects)) {
-      return initialProjects;
-    }
-
-    // Fill in fields used by the UI so older saved project records remain compatible.
-    return parsedProjects.map((project) => ({
-      ...project,
-      status: project.status === "In Progress" ? "In progress" : (project.status || "In progress"),
-      description: project.description || "No description provided",
-      owner: project.owner || "AR",
-      ownerName: project.ownerName || "Avni Rajput",
-      dueDate: project.dueDate || "Not set",
-      progress: Number.isFinite(project.progress) ? project.progress : 0,
-      color: project.color || "violet",
-    }));
-  } catch (error) {
-    console.error("Failed to load saved projects:", error);
-    return initialProjects;
-  }
-}
 
 const initialTasks = [
   {
@@ -120,43 +94,72 @@ const navigation = [
   { label: "Team", icon: "♧" },
 ];
 
+const projectStatuses = ["In progress", "Completed"];
+const taskStatuses = ["To do", "In progress", "Completed"];
+const priorities = ["Low", "Medium", "High"];
+const projectColors = ["violet", "blue", "orange"];
+
+function readStorage(key, fallback) {
+  try {
+    const savedValue = localStorage.getItem(key);
+    if (!savedValue) return fallback;
+
+    const parsedValue = JSON.parse(savedValue);
+    return Array.isArray(parsedValue) ? parsedValue : fallback;
+  } catch (error) {
+    console.error(`Failed to read ${key} from local storage:`, error);
+    return fallback;
+  }
+}
+
+function normalizeProject(project, index) {
+  const progress = Number(project.progress);
+  const status =
+    project.status === "In Progress" ? "In progress" : project.status;
+
+  return {
+    ...project,
+    id: project.id ?? index + 1,
+    name: project.name || "Untitled project",
+    description: project.description || "No description provided",
+    status: projectStatuses.includes(status) ? status : "In progress",
+    owner: project.owner || "AR",
+    ownerName: project.ownerName || "Avni Rajput",
+    dueDate: project.dueDate || "Not set",
+    progress: Number.isFinite(progress)
+      ? Math.min(100, Math.max(0, progress))
+      : 0,
+    color: projectColors.includes(project.color) ? project.color : "violet",
+  };
+}
+
+function normalizeTask(task, index) {
+  return {
+    ...task,
+    id: task.id ?? index + 1,
+    title: task.title || "Untitled task",
+    project: task.project || "Unassigned project",
+    priority: priorities.includes(task.priority) ? task.priority : "Medium",
+    status: taskStatuses.includes(task.status) ? task.status : "To do",
+    dueDate: task.dueDate || "Not set",
+    assignee: task.assignee || "AR",
+  };
+}
+
+function loadProjects() {
+  return readStorage(STORAGE_KEYS.projects, initialProjects).map(
+    normalizeProject
+  );
+}
+
+function loadTasks() {
+  return readStorage(STORAGE_KEYS.tasks, initialTasks).map(normalizeTask);
+}
+
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [projects, setProjects] = useState(loadProjects);
-  const [tasks, setTasks] = useState(() => {
-    try {
-      const savedTasks = localStorage.getItem("projectflow-tasks");
-
-      if (!savedTasks) {
-        return initialTasks;
-      }
-
-      const parsedTasks = JSON.parse(savedTasks);
-
-      if (!Array.isArray(parsedTasks)) {
-        return initialTasks;
-      }
-
-      // Keep older saved task records compatible with the current UI.
-      return parsedTasks.map((task, index) => ({
-        ...task,
-        id: task.id ?? index + 1,
-        title: task.title || "Untitled task",
-        project: task.project || "Unassigned project",
-        priority: ["Low", "Medium", "High"].includes(task.priority)
-          ? task.priority
-          : "Medium",
-        status: ["To do", "In progress", "Completed"].includes(task.status)
-          ? task.status
-          : "To do",
-        dueDate: task.dueDate || "Not set",
-        assignee: task.assignee || "AR",
-      }));
-    } catch (error) {
-      console.error("Failed to load saved tasks:", error);
-      return initialTasks;
-    }
-  });
+  const [tasks, setTasks] = useState(loadTasks);
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("All projects");
   const [taskFilter, setTaskFilter] = useState("All tasks");
@@ -164,18 +167,52 @@ function App() {
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
 
- useEffect(() => {
-  try {
-    localStorage.setItem("projectflow-tasks", JSON.stringify(tasks));
-  } catch (error) {
-    console.error("Failed to save tasks:", error);
-  }
-}, [tasks]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.projects, JSON.stringify(projects));
+    } catch (error) {
+      console.error("Failed to save projects:", error);
+    }
+  }, [projects]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.tasks, JSON.stringify(tasks));
+    } catch (error) {
+      console.error("Failed to save tasks:", error);
+    }
+  }, [tasks]);
 
   const activeProjects = useMemo(
     () => projects.filter((project) => project.status === "In progress"),
     [projects]
   );
+
+  const completedProjects = useMemo(
+    () => projects.filter((project) => project.status === "Completed"),
+    [projects]
+  );
+
+  const completedTasks = useMemo(
+    () => tasks.filter((task) => task.status === "Completed"),
+    [tasks]
+  );
+
+  const taskCounts = useMemo(
+    () => ({
+      todo: tasks.filter((task) => task.status === "To do").length,
+      inProgress: tasks.filter((task) => task.status === "In progress").length,
+      completed: completedTasks.length,
+      total: tasks.length,
+    }),
+    [tasks, completedTasks.length]
+  );
+
+  const completionPercentage =
+    taskCounts.total === 0
+      ? 0
+      : Math.round((taskCounts.completed / taskCounts.total) * 100);
+
   const filteredDashboardProjects = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -186,12 +223,6 @@ function App() {
         project.ownerName.toLowerCase().includes(query)
     );
   }, [activeProjects, search]);
-  const completedProjects = projects.filter(
-    (project) => project.status === "Completed"
-  );
-  const completedTasks = tasks.filter(
-    (task) => task.status === "Completed"
-  );
 
   const filteredProjects = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -203,8 +234,7 @@ function App() {
         project.ownerName.toLowerCase().includes(query);
 
       const matchesStatus =
-        projectFilter === "All projects" ||
-        project.status === projectFilter;
+        projectFilter === "All projects" || project.status === projectFilter;
 
       return matchesSearch && matchesStatus;
     });
@@ -224,6 +254,12 @@ function App() {
       return matchesSearch && matchesStatus;
     });
   }, [tasks, search, taskFilter]);
+
+  function navigateTo(page) {
+    setActivePage(page);
+    setSearch("");
+  }
+
   function addProject(event) {
     event.preventDefault();
 
@@ -231,7 +267,7 @@ function App() {
     const description = newProjectDescription.trim();
 
     if (!name) {
-      alert("Please enter a project name.");
+      window.alert("Please enter a project name.");
       return;
     }
 
@@ -244,16 +280,18 @@ function App() {
       ownerName: "Avni Rajput",
       dueDate: "Not set",
       progress: 0,
-      color: "violet",
+      color: projectColors[projects.length % projectColors.length],
     };
 
-    setProjects((previousProjects) => [...previousProjects, newProject]);
+    setProjects((currentProjects) => [...currentProjects, newProject]);
     setNewProjectName("");
     setNewProjectDescription("");
     setShowProjectForm(false);
   }
 
   function updateTaskStatus(taskId, nextStatus) {
+    if (!taskStatuses.includes(nextStatus)) return;
+
     setTasks((currentTasks) =>
       currentTasks.map((task) =>
         task.id === taskId ? { ...task, status: nextStatus } : task
@@ -262,11 +300,8 @@ function App() {
   }
 
   function updateTaskField(taskId, field, value) {
-    const editableFields = ["priority", "dueDate"];
-
-    if (!editableFields.includes(field)) {
-      return;
-    }
+    if (field === "priority" && !priorities.includes(value)) return;
+    if (!["priority", "dueDate"].includes(field)) return;
 
     setTasks((currentTasks) =>
       currentTasks.map((task) =>
@@ -275,9 +310,14 @@ function App() {
     );
   }
 
-  function navigateTo(page) {
-    setActivePage(page);
+  function clearProjectFilters() {
     setSearch("");
+    setProjectFilter("All projects");
+  }
+
+  function clearTaskFilters() {
+    setSearch("");
+    setTaskFilter("All tasks");
   }
 
   function renderDashboard() {
@@ -288,11 +328,10 @@ function App() {
             <div className="eyebrow">WORKSPACE OVERVIEW</div>
             <h1>Good work starts here.</h1>
             <p className="page-description">
-              Keep projects moving, stay on top of tasks, and see what
-              your team is working on.
+              Keep projects moving, stay on top of tasks, and see what your
+              team is working on.
             </p>
           </div>
-
           <button
             className="primary-button"
             type="button"
@@ -301,7 +340,7 @@ function App() {
               setShowProjectForm(true);
             }}
           >
-            <span>＋</span> New project
+            <span aria-hidden="true">＋</span> New project
           </button>
         </div>
 
@@ -309,7 +348,7 @@ function App() {
           <article className="overview-card">
             <div className="overview-card-top">
               <span>Total projects</span>
-              <span className="metric-icon">▤</span>
+              <span className="metric-icon" aria-hidden="true">▤</span>
             </div>
             <div className="metric-value">{projects.length}</div>
             <div className="metric-note">Across your workspace</div>
@@ -318,22 +357,22 @@ function App() {
           <article className="overview-card">
             <div className="overview-card-top">
               <span>Active projects</span>
-              <span className="metric-icon progress-icon">◷</span>
+              <span className="metric-icon progress-icon" aria-hidden="true">◷</span>
             </div>
             <div className="metric-value">{activeProjects.length}</div>
-            <div className="metric-note">Currently inprogress</div>
+            <div className="metric-note">Currently in progress</div>
           </article>
 
           <article className="overview-card">
             <div className="overview-card-top">
               <span>Tasks completed</span>
-              <span className="metric-icon completed-icon">✓</span>
+              <span className="metric-icon completed-icon" aria-hidden="true">✓</span>
             </div>
             <div className="metric-value">
-              {completedTasks.length}
-              <span className="metric-total"> / {tasks.length}</span>
+              {taskCounts.completed}
+              <span className="metric-total"> / {taskCounts.total}</span>
             </div>
-            <div className="metric-note">Tasks markedcomplete</div>
+            <div className="metric-note">{completionPercentage}% of all tasks</div>
           </article>
         </div>
 
@@ -409,21 +448,37 @@ function App() {
               <div className="task-summary-row">
                 <span className="summary-dot todo-dot" />
                 <span>To do</span>
-                <strong>
-                  {tasks.filter((task) => task.status === "To do").length}
-                </strong>
+                <strong>{taskCounts.todo}</strong>
               </div>
               <div className="task-summary-row">
                 <span className="summary-dot progress-dot" />
                 <span>In progress</span>
-                <strong>
-                  {tasks.filter((task) => task.status === "In progress").length}
-                </strong>
+                <strong>{taskCounts.inProgress}</strong>
               </div>
               <div className="task-summary-row">
                 <span className="summary-dot complete-dot" />
                 <span>Completed</span>
-                <strong>{completedTasks.length}</strong>
+                <strong>{taskCounts.completed}</strong>
+              </div>
+            </div>
+
+            <div className="completion-summary">
+              <div className="completion-summary-label">
+                <span>Overall completion</span>
+                <strong>{completionPercentage}%</strong>
+              </div>
+              <div
+                className="progress-track"
+                role="progressbar"
+                aria-label="Overall task completion"
+                aria-valuenow={completionPercentage}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <span
+                  className="progress-fill violet"
+                  style={{ width: `${completionPercentage}%` }}
+                />
               </div>
             </div>
 
@@ -476,17 +531,16 @@ function App() {
             <div className="eyebrow">PROJECT MANAGEMENT</div>
             <h1>Projects</h1>
             <p className="page-description">
-              Plan work, coordinate your team, and track project progress
-              from one place.
+              Plan work, coordinate your team, and track project progress from
+              one place.
             </p>
           </div>
-
           <button
             className="primary-button"
             type="button"
             onClick={() => setShowProjectForm((visible) => !visible)}
           >
-            <span>＋</span> New project
+            <span aria-hidden="true">＋</span> New project
           </button>
         </div>
 
@@ -495,7 +549,7 @@ function App() {
             <div className="section-heading">
               <div>
                 <h2>New project</h2>
-                <p>Enter the initial details for yourproject.</p>
+                <p>Enter the initial details for your project.</p>
               </div>
               <button
                 className="text-button"
@@ -513,6 +567,7 @@ function App() {
                 onChange={(event) => setNewProjectName(event.target.value)}
                 placeholder="e.g. Customer Portal"
                 required
+                maxLength={100}
               />
             </label>
 
@@ -525,13 +580,14 @@ function App() {
                 }
                 placeholder="What is this project about?"
                 rows={3}
+                maxLength={500}
               />
             </label>
 
             <p className="form-note">
-              Projects are saved in this browser. A backend API is not connected yet.
+              Projects are saved in this browser. A backend API is not
+              connected yet.
             </p>
-
             <button className="primary-button" type="submit">
               Save project details
             </button>
@@ -542,7 +598,7 @@ function App() {
           <article className="overview-card">
             <div className="overview-card-top">
               <span>Total projects</span>
-              <span className="metric-icon">▤</span>
+              <span className="metric-icon" aria-hidden="true">▤</span>
             </div>
             <div className="metric-value">{projects.length}</div>
             <div className="metric-note">Across your workspace</div>
@@ -550,7 +606,7 @@ function App() {
           <article className="overview-card">
             <div className="overview-card-top">
               <span>In progress</span>
-              <span className="metric-icon progress-icon">◷</span>
+              <span className="metric-icon progress-icon" aria-hidden="true">◷</span>
             </div>
             <div className="metric-value">{activeProjects.length}</div>
             <div className="metric-note">Currently being worked on</div>
@@ -558,10 +614,10 @@ function App() {
           <article className="overview-card">
             <div className="overview-card-top">
               <span>Completed</span>
-              <span className="metric-icon completed-icon">✓</span>
+              <span className="metric-icon completed-icon" aria-hidden="true">✓</span>
             </div>
             <div className="metric-value">{completedProjects.length}</div>
-            <div className="metric-note">Successfullyfinished</div>
+            <div className="metric-note">Successfully finished</div>
           </article>
         </div>
 
@@ -570,13 +626,11 @@ function App() {
             <div>
               <h2>Your team's projects</h2>
               <p>
-                Track ownership, deadlines, and progress across active
-                and completed work.
+                Track ownership, deadlines, and progress across active and
+                completed work.
               </p>
             </div>
-            <span className="project-count">
-              {filteredProjects.length} projects
-            </span>
+            <span className="project-count">{filteredProjects.length} projects</span>
           </div>
 
           <div className="project-toolbar">
@@ -590,7 +644,6 @@ function App() {
                 aria-label="Search projects"
               />
             </label>
-
             <select
               className="status-filter"
               value={projectFilter}
@@ -598,8 +651,9 @@ function App() {
               aria-label="Filter projects by status"
             >
               <option>All projects</option>
-              <option>In progress</option>
-              <option>Completed</option>
+              {projectStatuses.map((status) => (
+                <option key={status}>{status}</option>
+              ))}
             </select>
           </div>
 
@@ -660,25 +714,17 @@ function App() {
                             style={{ width: `${project.progress}%` }}
                           />
                         </div>
-                        <span className="progress-number">
-                          {project.progress}%
-                        </span>
+                        <span className="progress-number">{project.progress}%</span>
                       </div>
                     </td>
                   </tr>
                 ))}
                 {filteredProjects.length === 0 && (
                   <tr>
-                    <td colSpan="5" className="empty-state">
+                    <td colSpan={5} className="empty-state">
                       <strong>No projects found</strong>
-                      <p>Try another search or statusfilter.</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSearch("");
-                          setProjectFilter("All projects");
-                        }}
-                      >
+                      <p>Try another search or status filter.</p>
+                      <button type="button" onClick={clearProjectFilters}>
                         Clear filters
                       </button>
                     </td>
@@ -716,28 +762,26 @@ function App() {
           <article className="overview-card">
             <div className="overview-card-top">
               <span>All tasks</span>
-              <span className="metric-icon">☷</span>
+              <span className="metric-icon" aria-hidden="true">☷</span>
             </div>
-            <div className="metric-value">{tasks.length}</div>
+            <div className="metric-value">{taskCounts.total}</div>
             <div className="metric-note">Tasks in this demo</div>
           </article>
           <article className="overview-card">
             <div className="overview-card-top">
               <span>In progress</span>
-              <span className="metric-icon progress-icon">◷</span>
+              <span className="metric-icon progress-icon" aria-hidden="true">◷</span>
             </div>
-            <div className="metric-value">
-              {tasks.filter((task) => task.status === "In progress").length}
-            </div>
+            <div className="metric-value">{taskCounts.inProgress}</div>
             <div className="metric-note">Currently being worked on</div>
           </article>
           <article className="overview-card">
             <div className="overview-card-top">
               <span>Completed</span>
-              <span className="metric-icon completed-icon">✓</span>
+              <span className="metric-icon completed-icon" aria-hidden="true">✓</span>
             </div>
-            <div className="metric-value">{completedTasks.length}</div>
-            <div className="metric-note">Marked as completed</div>
+            <div className="metric-value">{taskCounts.completed}</div>
+            <div className="metric-note">{completionPercentage}% completion</div>
           </article>
         </div>
 
@@ -745,7 +789,7 @@ function App() {
           <div className="section-heading">
             <div>
               <h2>Task list</h2>
-              <p>Change task status to track progresslocally.</p>
+              <p>Update task status, priority, and due dates.</p>
             </div>
             <span className="project-count">{filteredTasks.length} tasks</span>
           </div>
@@ -758,10 +802,9 @@ function App() {
                 placeholder="Search tasks or projects..."
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                aria-label="Search tasks"
+                aria-label="Search tasks or projects"
               />
             </label>
-
             <select
               className="status-filter"
               value={taskFilter}
@@ -769,9 +812,9 @@ function App() {
               aria-label="Filter tasks by status"
             >
               <option>All tasks</option>
-              <option>To do</option>
-              <option>In progress</option>
-              <option>Completed</option>
+              {taskStatuses.map((status) => (
+                <option key={status}>{status}</option>
+              ))}
             </select>
           </div>
 
@@ -783,15 +826,14 @@ function App() {
                     className={`task-check ${
                       task.status === "Completed" ? "checked" : ""
                     }`}
+                    aria-label={
+                      task.status === "Completed" ? "Task completed" : "Task not completed"
+                    }
                   >
                     {task.status === "Completed" ? "✓" : ""}
                   </span>
                   <div>
-                    <strong
-                      className={
-                        task.status === "Completed" ?"task-done" : ""
-                      }
-                    >
+                    <strong className={task.status === "Completed" ? "task-done" : ""}>
                       {task.title}
                     </strong>
                     <span>{task.project}</span>
@@ -808,9 +850,11 @@ function App() {
                     }
                     aria-label={`Priority for ${task.title}`}
                   >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
+                    {priorities.map((priority) => (
+                      <option key={priority} value={priority}>
+                        {priority}
+                      </option>
+                    ))}
                   </select>
                 </label>
 
@@ -828,18 +872,21 @@ function App() {
                   />
                 </label>
 
-                <select
-                  className="task-status-select"
-                  value={task.status}
-                  onChange={(event) =>
-                    updateTaskStatus(task.id, event.target.value)
-                  }
-                  aria-label={`Status for ${task.title}`}
-                >
-                  <option>To do</option>
-                  <option>In progress</option>
-                  <option>Completed</option>
-                </select>
+                <label className="task-edit-field">
+                  <span className="visually-hidden">Status for {task.title}</span>
+                  <select
+                    className="task-status-select"
+                    value={task.status}
+                    onChange={(event) =>
+                      updateTaskStatus(task.id, event.target.value)
+                    }
+                    aria-label={`Status for ${task.title}`}
+                  >
+                    {taskStatuses.map((status) => (
+                      <option key={status}>{status}</option>
+                    ))}
+                  </select>
+                </label>
               </article>
             ))}
 
@@ -847,9 +894,13 @@ function App() {
               <div className="empty-state">
                 <strong>No tasks found</strong>
                 <p>Try changing your search or filter.</p>
+                <button type="button" onClick={clearTaskFilters}>
+                  Clear filters
+                </button>
               </div>
             )}
           </div>
+
           <div className="table-footer">
             <span>Task updates are saved in this browser.</span>
             <span>Backend not connected</span>
@@ -878,9 +929,7 @@ function App() {
               <h2>Workspace members</h2>
               <p>Demo members and their current responsibilities.</p>
             </div>
-            <span className="project-count">
-              {teamMembers.length} members
-            </span>
+            <span className="project-count">{teamMembers.length} members</span>
           </div>
 
           <div className="team-list">
@@ -895,7 +944,12 @@ function App() {
                 </div>
                 <div className="team-assignment">
                   <span>Assigned projects</span>
-                  <strong>{index === 0 ? 1 : index === 1 ? 1 : 1}</strong>
+                  <strong>
+                    {
+                      projects.filter((project) => project.owner === member.initials)
+                        .length
+                    }
+                  </strong>
                 </div>
                 <span className="status-pill status-progress">
                   <span className="status-dot" />
@@ -906,7 +960,7 @@ function App() {
           </div>
           <div className="table-footer">
             <span>Member information is sample data.</span>
-            <span>Invitations and permissions are notimplemented.</span>
+            <span>Invitations and permissions are not implemented.</span>
           </div>
         </section>
       </>
@@ -922,31 +976,26 @@ function App() {
         </div>
 
         <div className="workspace-label">WORKSPACE</div>
-
         <div className="workspace-switcher">
           <span className="workspace-avatar">W</span>
           <span className="workspace-info">
             <strong>Team workspace</strong>
             <small>Project management</small>
           </span>
-          <span className="switcher-arrow">⌄</span>
+          <span className="switcher-arrow" aria-hidden="true">⌄</span>
         </div>
 
         <div className="nav-label">MENU</div>
-
         <nav className="main-navigation" aria-label="Main navigation">
           {navigation.map((item) => (
             <button
               key={item.label}
               type="button"
-              className={`nav-item ${
-                activePage === item.label ? "active" : ""
-              }`}
+              className={`nav-item ${activePage === item.label ? "active" : ""}`}
               onClick={() => navigateTo(item.label)}
+              aria-current={activePage === item.label ? "page" : undefined}
             >
-              <span className="nav-icon" aria-hidden="true">
-                {item.icon}
-              </span>
+              <span className="nav-icon" aria-hidden="true">{item.icon}</span>
               <span>{item.label}</span>
               {item.label === "My Tasks" && (
                 <span className="nav-count">{tasks.length}</span>
@@ -957,13 +1006,12 @@ function App() {
 
         <div className="sidebar-bottom">
           <div className="sidebar-help">
-            <span className="help-symbol">?</span>
+            <span className="help-symbol" aria-hidden="true">?</span>
             <div>
               <strong>Need a hand?</strong>
               <small>Help and documentation</small>
             </div>
           </div>
-
           <div className="profile">
             <div className="profile-avatar">AR</div>
             <div className="profile-info">
