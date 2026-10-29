@@ -1,319 +1,426 @@
-// src/App.jsx
 import React, { useState } from 'react';
 import './App.css';
+import { initialProjects, initialTasks } from './mockData';
 
-export default function App() {
-  // 1. Navigation State (Controls which "page" is visible)
-  const [currentView, setCurrentView] = useState('Dashboard'); // 'Dashboard' or 'Projects'
+function App() {
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'projects', 'project-detail'
+  const [projects, setProjects] = useState(initialProjects);
+  const [tasks, setTasks] = useState(initialTasks);
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
 
-  // Modal control states
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // 2. Active Projects State (Interactive!)
-  const [projects, setProjects] = useState([
-    {
-      id: 'p1',
-      name: 'Website Redesign',
-      icon: 'W',
-      iconClass: 'purple-icon',
-      fillClass: 'purple-fill',
-      progress: 70,
-      status: 'In Progress',
-      statusClass: 'progress',
-      description: 'Modernizing the SaaS landing page and dashboard UI components.'
-    },
-    {
-      id: 'p2',
-      name: 'Mobile App Launch',
-      icon: 'M',
-      iconClass: 'pink-icon',
-      fillClass: 'pink-fill',
-      progress: 45,
-      status: 'In Review',
-      statusClass: 'review',
-      description: 'Building cross-platform notifications and user onboarding flows.'
-    },
-    {
-      id: 'p3',
-      name: 'Marketing Portal',
-      icon: 'A',
-      iconClass: 'blue-icon',
-      fillClass: 'blue-fill',
-      progress: 100,
-      status: 'Completed',
-      statusClass: 'completed',
-      description: 'Analytics tracking and automated reporting dashboard for teams.'
-    }
-  ]);
-
-  // Tasks state
-  const [tasks, setTasks] = useState([
-    { id: 1, title: 'Design system components & color tokens', project: 'Website Redesign', due: 'Today, 4:00 PM', color: 'purple-dot', completed: false },
-    { id: 2, title: 'Fix authentication API token refresh', project: 'Mobile App Launch', due: 'Tomorrow, 11:00 AM', color: 'pink-dot', completed: false },
-    { id: 3, title: 'Finalize Q3 analytics dashboard report', project: 'Marketing Portal', due: 'Completed', color: 'blue-dot', completed: true },
-  ]);
-
-  // Form input states for creating a new task
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskProject, setTaskProject] = useState('Website Redesign');
-  const [taskDue, setTaskDue] = useState('Today, 6:00 PM');
-
-  // Calculations for Stat Cards
+  // Helper metrics calculation for Dashboard Overview
+  const totalProjectsCount = projects.length;
+  const completedProjectsCount = projects.filter(p => p.status === 'Completed').length;
+  const inProgressProjectsCount = projects.filter(p => p.status === 'In Progress').length;
+  
+  // Calculate general quick-stats
   const totalTasks = tasks.length;
-  const completedTasks = tasks.filter((t) => t.completed).length;
-  const inProgressTasks = totalTasks - completedTasks;
+  const completedTasks = tasks.filter(t => t.status === 'Completed').length;
+  const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  const handleAddTask = (e) => {
-    e.preventDefault();
-    if (!taskTitle.trim()) return;
+  // Navigation handlers
+  const handleViewProjectDetails = (projectId) => {
+    setSelectedProjectId(projectId);
+    setCurrentView('project-detail');
+  };
 
-    const dotColor =
-      taskProject === 'Website Redesign'
-        ? 'purple-dot'
-        : taskProject === 'Mobile App Launch'
-        ? 'pink-dot'
-        : 'blue-dot';
+  const getSelectedProjectData = () => {
+    const project = projects.find(p => p.id === selectedProjectId);
+    if (!project) return null;
 
-    const newTask = {
-      id: Date.now(),
-      title: taskTitle,
-      project: taskProject,
-      due: taskDue,
-      color: dotColor,
-      completed: false,
+    // Filter tasks specific to this project
+    const projectTasks = tasks.filter(t => t.projectId === project.id);
+    const totalProjTasks = projectTasks.length;
+    const completedProjTasks = projectTasks.filter(t => t.status === 'Completed').length;
+
+    // 1. Task Completion Rate
+    const completionRate = totalProjTasks > 0 ? Math.round((completedProjTasks / totalProjTasks) * 100) : 0;
+
+    // 2. On-Time Completion Rate (Of completed tasks, how many were marked on-time)
+    const onTimeTasks = projectTasks.filter(t => t.status === 'Completed' && t.onTime).length;
+    const onTimeRate = completedProjTasks > 0 ? Math.round((onTimeTasks / completedProjTasks) * 100) : 0;
+
+    // 3. Overdue Task Count (To-Do/In-Progress whose dueDate is before today: Let's assume today is March 2, 2025)
+    const todayStr = "2025-03-02";
+    const overdueTasksCount = projectTasks.filter(t => {
+      return t.status !== 'Completed' && t.dueDate < todayStr;
+    }).length;
+
+    // 4. Assignment Coverage (Percentage of tasks assigned to a team member)
+    const assignedTasks = projectTasks.filter(t => t.assignedTo && t.assignedTo.trim() !== "").length;
+    const coverageRate = totalProjTasks > 0 ? Math.round((assignedTasks / totalProjTasks) * 100) : 0;
+
+    return {
+      ...project,
+      tasks: projectTasks,
+      metrics: {
+        completionRate,
+        onTimeRate,
+        overdueTasksCount,
+        coverageRate,
+        totalProjTasks
+      }
     };
-
-    setTasks([newTask, ...tasks]);
-    setTaskTitle('');
-    setIsModalOpen(false);
   };
 
-  const toggleTaskStatus = (id) => {
-    setTasks(
-      tasks.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task
-      )
-    );
-  };
+  const activeProject = getSelectedProjectData();
 
   return (
-    <div className="dashboard">
+    <div className="app-container">
       {/* Sidebar Navigation */}
       <aside className="sidebar">
-        <h2 className="logo" onClick={() => setCurrentView('Dashboard')} style={{ cursor: 'pointer' }}>
-          TaskFlow
-        </h2>
-        <nav>
-          <button
-            className={`nav-item ${currentView === 'Dashboard' ? 'active' : ''}`}
-            onClick={() => setCurrentView('Dashboard')}
+        <div className="logo-container">
+          <h2 className="logo-text">FlowBoard</h2>
+        </div>
+        <nav className="nav-menu">
+          <button 
+            className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setCurrentView('dashboard')}
           >
-            Dashboard
+            <span className="icon">📊</span> Dashboard
           </button>
-          <button
-            className={`nav-item ${currentView === 'Projects' ? 'active' : ''}`}
-            onClick={() => setCurrentView('Projects')}
+          <button 
+            className={`nav-item ${currentView === 'projects' || currentView === 'project-detail' ? 'active' : ''}`}
+            onClick={() => setCurrentView('projects')}
           >
-            My Projects
+            <span className="icon">💼</span> My Projects
           </button>
-          <button className="nav-item" onClick={() => alert('Kanban coming in tomorrow\'s update!')}>
-            Kanban Board
-          </button>
-          <button className="nav-item" onClick={() => alert('To-Do list feature coming soon!')}>
-            My To-Do List
-          </button>
-          <button className="nav-item calendar-item">📅 Schedule</button>
         </nav>
-
-        <div className="profile">
-          <div className="avatar">AR</div>
-          <div>
-            <h4>Alex Rivera</h4>
-            <p>Frontend Developer</p>
-          </div>
+        <div className="sidebar-footer">
+          <p className="user-label">Logged in as:</p>
+          <p className="user-name">Keerthi Kumar</p>
         </div>
       </aside>
 
-      {/* Main Content View Switcher */}
-      <div className="main-content-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        
-        {/* VIEW 1: DASHBOARD PAGE */}
-        {currentView === 'Dashboard' && (
-          <main className="main-content">
-            <header className="topbar">
-              <div>
-                <h1>Welcome back, Alex! ✨</h1>
-                <p>Here is your workspace overview. Click any task below to complete it!</p>
-              </div>
-              <button className="primary-btn" onClick={() => setIsModalOpen(true)}>
-                + Create Task
-              </button>
-            </header>
+      {/* Main Content Area */}
+      <main className="main-content">
+        <header className="header-bar">
+          <div className="header-search">
+            <input type="text" placeholder="Search projects or metrics..." disabled />
+          </div>
+          <div className="profile-indicator">
+            <span className="user-badge">KK</span>
+          </div>
+        </header>
 
-            {/* Dynamic Stat Cards */}
-            <section className="stats">
-              <div className="stat-card purple">
-                <p>Total Tasks</p>
-                <h2>{totalTasks}</h2>
-                <span>Across {projects.length} active projects</span>
+        <div className="content-body">
+          {/* VIEW: DASHBOARD */}
+          {currentView === 'dashboard' && (
+            <div className="view-fade-in">
+              <div className="welcome-banner">
+                <h1>Welcome back, Keerthi! 👋</h1>
+                <p>Here is your team's project delivery intelligence and status overview.</p>
               </div>
 
-              <div className="stat-card pink">
-                <p>In Progress</p>
-                <h2>{inProgressTasks}</h2>
-                <span>Active tasks pending completion</span>
+              {/* KPI Cards */}
+              <div className="kpi-grid">
+                <div className="kpi-card">
+                  <span className="kpi-icon blue">📁</span>
+                  <div className="kpi-info">
+                    <h3>Total Projects</h3>
+                    <p className="kpi-value">{totalProjectsCount}</p>
+                  </div>
+                </div>
+                <div className="kpi-card">
+                  <span className="kpi-icon yellow">⏳</span>
+                  <div className="kpi-info">
+                    <h3>In Progress</h3>
+                    <p className="kpi-value">{inProgressProjectsCount}</p>
+                  </div>
+                </div>
+                <div className="kpi-card">
+                  <span className="kpi-icon green">✅</span>
+                  <div className="kpi-info">
+                    <h3>Completed</h3>
+                    <p className="kpi-value">{completedProjectsCount}</p>
+                  </div>
+                </div>
+                <div className="kpi-card">
+                  <span className="kpi-icon purple">🎯</span>
+                  <div className="kpi-info">
+                    <h3>Avg Task Progress</h3>
+                    <p className="kpi-value">{taskCompletionRate}%</p>
+                  </div>
+                </div>
               </div>
 
-              <div className="stat-card blue">
-                <p>Completed Tasks</p>
-                <h2>{completedTasks}</h2>
-                <span>
-                  {totalTasks > 0
-                    ? `${Math.round((completedTasks / totalTasks) * 100)}% overall completion rate`
-                    : '0% completion rate'}
-                </span>
-              </div>
-            </section>
-
-            {/* Projects Preview Row */}
-            <section className="projects-section">
-              <div className="section-heading">
-                <h2>Active Projects Preview</h2>
-                <button className="text-btn" onClick={() => setCurrentView('Projects')}>
-                  View All Projects →
-                </button>
+              {/* Recent Activity / Quick Projects List */}
+              <div className="section-header-row">
+                <h2>Active Projects</h2>
+                <button className="text-action-btn" onClick={() => setCurrentView('projects')}>View Portfolio →</button>
               </div>
 
-              <div className="project-grid">
-                {projects.slice(0, 3).map((project) => (
-                  <div key={project.id} className="project-card">
-                    <div className={`project-icon ${project.iconClass}`}>{project.icon}</div>
-                    <span className={`status ${project.statusClass}`}>{project.status}</span>
-                    <h3>{project.name}</h3>
-                    <p>{project.description}</p>
-                    <div className="progress-info">
-                      <span>Progress</span>
-                      <strong>{project.progress}%</strong>
+              <div className="projects-grid">
+                {projects.map(project => (
+                  <div 
+                    key={project.id} 
+                    className="project-card interactive"
+                    onClick={() => handleViewProjectDetails(project.id)}
+                  >
+                    <div className="card-header">
+                      <span className={`status-badge ${project.status.toLowerCase().replace(" ", "-")}`}>
+                        {project.status}
+                      </span>
+                      <span className="due-date">Due: {project.dueDate}</span>
                     </div>
-                    <div className="progress-bar">
-                      <div className={`progress-fill ${project.fillClass}`} style={{ width: `${project.progress}%` }}></div>
+                    <h3>{project.name}</h3>
+                    <p className="project-desc">{project.description}</p>
+                    
+                    <div className="progress-section">
+                      <div className="progress-label">
+                        <span>Progress</span>
+                        <span>{project.progress}%</span>
+                      </div>
+                      <div className="progress-bar-bg">
+                        <div className="progress-bar-fill" style={{ width: `${project.progress}%` }}></div>
+                      </div>
+                    </div>
+
+                    <div className="card-footer-tags">
+                      <span className="tag-micro">👥 {project.teamName}</span>
+                      <span className="tag-micro">🛠️ {project.techStack.length} Techs</span>
                     </div>
                   </div>
                 ))}
               </div>
-            </section>
+            </div>
+          )}
 
-            {/* Tasks Section */}
-            <section className="tasks-section">
-              <h2>Today&apos;s Tasks</h2>
-              {tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={`task-row ${task.completed ? 'task-done' : ''}`}
-                  onClick={() => toggleTaskStatus(task.id)}
-                >
-                  <span className={`task-dot ${task.color}`}></span>
-                  <div>
-                    <h4>{task.title}</h4>
-                    <p>{task.project}</p>
-                  </div>
-                  <span className={`status ${task.completed ? 'completed' : 'progress'}`}>
-                    {task.completed ? '✓ Completed' : task.due}
-                  </span>
+          {/* VIEW: MY PROJECTS */}
+          {currentView === 'projects' && (
+            <div className="view-fade-in">
+              <div className="portfolio-header">
+                <div>
+                  <h1>My Projects Portfolio</h1>
+                  <p>Enterprise level workspace and metrics overview</p>
                 </div>
-              ))}
-            </section>
-          </main>
-        )}
-
-        {/* VIEW 2: DEDICATED PROJECTS PORTFOLIO PAGE */}
-        {currentView === 'Projects' && (
-          <main className="main-content">
-            <header className="topbar">
-              <div>
-                <h1>Workspace Portfolios 📂</h1>
-                <p>Detailed breakdown of tracking instances managed inside this organization.</p>
               </div>
-              <button 
-                className="primary-btn" 
-                onClick={() => alert('Create Project database routing coming up in our milestones!')}
-              >
-                + Create Project
-              </button>
-            </header>
 
-            {/* Full-width interactive projects view */}
-            <section className="projects-section">
-              <div className="project-grid">
-                {projects.map((project) => (
-                  <div key={project.id} className="project-card" style={{ minHeight: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div>
-                      <div className="project-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                        <div className={`project-icon ${project.iconClass}`} style={{ marginBottom: 0 }}>{project.icon}</div>
-                        <span className={`status ${project.statusClass}`}>{project.status}</span>
-                      </div>
-                      <h3>{project.name}</h3>
-                      <p style={{ minHeight: '60px' }}>{project.description}</p>
+              <div className="projects-grid">
+                {projects.map(project => (
+                  <div 
+                    key={project.id} 
+                    className="project-card interactive-heavy"
+                    onClick={() => handleViewProjectDetails(project.id)}
+                  >
+                    <div className="card-header">
+                      <span className={`status-badge ${project.status.toLowerCase().replace(" ", "-")}`}>
+                        {project.status}
+                      </span>
+                      <span className="due-date-bold">⏳ {project.dueDate}</span>
                     </div>
                     
-                    <div className="project-footer-progress" style={{ marginTop: 'auto' }}>
-                      <div className="progress-info">
-                        <span>Overall Integrity Rate</span>
-                        <strong>{project.progress}%</strong>
+                    <h2 className="project-title-large">{project.name}</h2>
+                    <p className="project-desc">{project.description}</p>
+                    
+                    <div className="tech-badge-row">
+                      {project.techStack.slice(0, 3).map((tech, idx) => (
+                        <span key={idx} className="tech-micro-tag">{tech}</span>
+                      ))}
+                      {project.techStack.length > 3 && <span className="tech-micro-tag count">+{project.techStack.length - 3}</span>}
+                    </div>
+
+                    <div className="progress-section">
+                      <div className="progress-label">
+                        <span>Overall Health</span>
+                        <span>{project.progress}%</span>
                       </div>
-                      <div className="progress-bar">
-                        <div className={`progress-fill ${project.fillClass}`} style={{ width: `${project.progress}%` }}></div>
+                      <div className="progress-bar-bg">
+                        <div className="progress-bar-fill" style={{ width: `${project.progress}%` }}></div>
                       </div>
+                    </div>
+
+                    <div className="card-expanded-footer">
+                      <span className="team-indicator">🏡 {project.teamName}</span>
+                      <button className="view-details-action">View Intelligence ➔</button>
                     </div>
                   </div>
                 ))}
               </div>
-            </section>
-          </main>
-        )}
-      </div>
-
-      {/* Task Creation Modal Popup */}
-      {isModalOpen && (
-        <div className="modal-overlay">
-          <form className="modal-card" onSubmit={handleAddTask}>
-            <div className="modal-header">
-              <h3>Create New Task ✨</h3>
-              <button type="button" className="close-btn" onClick={() => setIsModalOpen(false)}>✕</button>
             </div>
+          )}
 
-            <div className="form-group">
-              <label>Task Title</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Build Kanban drag and drop"
-                value={taskTitle}
-                onChange={(e) => setTaskTitle(e.target.value)}
-              />
-            </div>
+          {/* VIEW: PROJECT DETAILS OVERVIEW */}
+          {currentView === 'project-detail' && activeProject && (
+            <div className="view-fade-in project-details-page">
+              {/* Back Navigation Header */}
+              <div className="back-nav-row">
+                <button className="back-btn" onClick={() => setCurrentView('projects')}>
+                  &larr; Back to Projects
+                </button>
+                <div className="breadcrumbs">
+                  <span>Workspace</span> / <span>Projects</span> / <span className="active-breadcrumb">{activeProject.name}</span>
+                </div>
+              </div>
 
-            <div className="form-group">
-              <label>Select Project</label>
-              <select value={taskProject} onChange={(e) => setTaskProject(e.target.value)}>
-                <option value="Website Redesign">Website Redesign</option>
-                <option value="Mobile App Launch">Mobile App Launch</option>
-                <option value="Marketing Portal">Marketing Portal</option>
-              </select>
-            </div>
+              {/* Project Title Block Banner */}
+              <div className="project-detail-hero">
+                <div className="hero-left">
+                  <span className={`status-badge-lg ${activeProject.status.toLowerCase().replace(" ", "-")}`}>
+                    {activeProject.status}
+                  </span>
+                  <h1 className="hero-title">{activeProject.name}</h1>
+                  <p className="hero-desc">{activeProject.description}</p>
+                </div>
+                <div className="hero-right">
+                  <div className="hero-meta-item">
+                    <span className="meta-label">DUE DATE</span>
+                    <span className="meta-val">{activeProject.dueDate}</span>
+                  </div>
+                  <div className="hero-meta-item">
+                    <span className="meta-label">TEAM ASSIGNED</span>
+                    <span className="meta-val highlight-purple">{activeProject.teamName}</span>
+                  </div>
+                </div>
+              </div>
 
-            <div className="form-group">
-              <label>Due Time / Deadline</label>
-              <input type="text" value={taskDue} onChange={(e) => setTaskDue(e.target.value)} />
-            </div>
+              {/* Metrics Delivery Intelligence Row */}
+              <h2 className="section-title">Delivery Intelligence Metrics</h2>
+              <div className="metrics-summary-grid">
+                
+                {/* Metric Card: Project Progress */}
+                <div className="metric-score-card">
+                  <div className="score-header">
+                    <h4>Overall Progress</h4>
+                    <span className="score-icon">📈</span>
+                  </div>
+                  <div className="score-body">
+                    <div className="score-percentage-circle">
+                      <span className="percentage-value">{activeProject.progress}%</span>
+                    </div>
+                  </div>
+                  <div className="score-footer">
+                    <div className="progress-bar-bg min-height">
+                      <div className="progress-bar-fill" style={{ width: `${activeProject.progress}%` }}></div>
+                    </div>
+                  </div>
+                </div>
 
-            <div className="modal-actions">
-              <button type="button" className="secondary-btn" onClick={() => setIsModalOpen(false)}>Cancel</button>
-              <button type="submit" className="primary-btn">Add Task</button>
+                {/* Metric Card: Task Completion */}
+                <div className="metric-score-card">
+                  <div className="score-header">
+                    <h4>Task Completion</h4>
+                    <span className="score-icon">🎯</span>
+                  </div>
+                  <div className="score-body">
+                    <p className="score-large-stat">{activeProject.metrics.completionRate}%</p>
+                    <p className="score-subtext">
+                      {activeProject.tasks.filter(t => t.status === 'Completed').length} of {activeProject.metrics.totalProjTasks} tasks finished
+                    </p>
+                  </div>
+                  <div className="score-footer">
+                    <span className="score-badge-indicator green">Healthy Stream</span>
+                  </div>
+                </div>
+
+                {/* Metric Card: On-Time Delivery */}
+                <div className="metric-score-card">
+                  <div className="score-header">
+                    <h4>On-Time Delivery</h4>
+                    <span className="score-icon">⚡</span>
+                  </div>
+                  <div className="score-body">
+                    <p className="score-large-stat">{activeProject.metrics.onTimeRate}%</p>
+                    <p className="score-subtext">Completed prior or on due-dates</p>
+                  </div>
+                  <div className="score-footer">
+                    <span className={`score-badge-indicator ${activeProject.metrics.onTimeRate >= 75 ? 'green' : 'orange'}`}>
+                      {activeProject.metrics.onTimeRate >= 75 ? 'Optimal Flow' : 'Minor Latency'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Metric Card: Overdue & Coverage */}
+                <div className="metric-score-card">
+                  <div className="score-header">
+                    <h4>Overdue Tasks</h4>
+                    <span className="score-icon alert-icon">⚠️</span>
+                  </div>
+                  <div className="score-body">
+                    <p className="score-large-stat alert-text">{activeProject.metrics.overdueTasksCount}</p>
+                    <p className="score-subtext">Awaiting resolution action</p>
+                  </div>
+                  <div className="score-footer">
+                    <span className="score-badge-indicator purple">
+                      Coverage: {activeProject.metrics.coverageRate}%
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Tech Stack & Team Members Badging Layout */}
+              <div className="details-metadata-split">
+                
+                {/* Tech Stack Badge Cluster */}
+                <div className="meta-badge-box">
+                  <div className="box-header">
+                    <h3>🛠️ Technology Stack</h3>
+                    <span className="badge-count-pill">{activeProject.techStack.length} Techs</span>
+                  </div>
+                  <p className="box-explainer">Core framework and developer dependencies mapped to this micro-repository:</p>
+                  <div className="badge-pool">
+                    {activeProject.techStack.map((tech, index) => (
+                      <span key={index} className="badge-tag tech-pill">
+                        {tech}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Team Members Badge Cluster */}
+                <div className="meta-badge-box">
+                  <div className="box-header">
+                    <h3>👥 Active Team Roster</h3>
+                    <span className="badge-count-pill">{activeProject.teamMembers.length} Members</span>
+                  </div>
+                  <p className="box-explainer">Engineering specialists assigned to task tracks under <strong>{activeProject.teamName}</strong>:</p>
+                  <div className="badge-pool">
+                    {activeProject.teamMembers.map((member, index) => (
+                      <span key={index} className="badge-tag member-pill">
+                        <span className="avatar-dot"></span>
+                        {member}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Tasks Breakdown list preview */}
+              <div className="associated-tasks-section">
+                <div className="tasks-section-header">
+                  <h3>Project Implementation Plan Preview</h3>
+                  <button className="kanban-jump-btn" disabled>
+                    ⚡ Open Full Kanban Board (Coming Day 2)
+                  </button>
+                </div>
+                <div className="simple-task-list">
+                  {activeProject.tasks.length === 0 ? (
+                    <p className="no-tasks-alert">No roadmap tasks created yet for this project.</p>
+                  ) : (
+                    activeProject.tasks.map(task => (
+                      <div key={task.id} className="task-preview-row">
+                        <div className="task-left">
+                          <span className={`task-status-indicator ${task.status.toLowerCase().replace(" ", "-")}`}></span>
+                          <span className="task-title-text">{task.title}</span>
+                        </div>
+                        <div className="task-right">
+                          <span className="task-assignee">👤 {task.assignedTo || "Unassigned"}</span>
+                          <span className="task-due">📅 {task.dueDate}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
             </div>
-          </form>
+          )}
         </div>
-      )}
+      </main>
     </div>
   );
 }
+
+export default App;
