@@ -120,6 +120,25 @@ const navigation = [
   { label: "Team", icon: "♧" },
 ];
 
+function parseTaskDate(value) {
+  if (!value || value === "Not set") return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : new Date(
+    parsed.getFullYear(), parsed.getMonth(), parsed.getDate()
+  );
+}
+
+function getTaskDueState(task) {
+  if (task.status === "Completed") return "Completed";
+  const dueDate = parseTaskDate(task.dueDate);
+  if (!dueDate) return "No due date";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (dueDate < today) return "Overdue";
+  if (dueDate.getTime() === today.getTime()) return "Due today";
+  return "Upcoming";
+}
+
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [projects, setProjects] = useState(loadProjects);
@@ -160,6 +179,18 @@ function App() {
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("All projects");
   const [taskFilter, setTaskFilter] = useState("All tasks");
+  const [priorityFilter, setPriorityFilter] = useState("All priorities");
+  const [dueDateFilter, setDueDateFilter] = useState("All due dates");
+  const [sortTasksBy, setSortTasksBy] = useState("Due date");
+  const [activity, setActivity] = useState(() => {
+    try {
+      const savedActivity = JSON.parse(localStorage.getItem("projectflow-activity") || "[]");
+      return Array.isArray(savedActivity) ? savedActivity : [];
+    } catch (error) {
+      console.error("Failed to load activity:", error);
+      return [];
+    }
+  });
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
@@ -212,18 +243,40 @@ function App() {
 
   const filteredTasks = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const priorityRank = { High: 3, Medium: 2, Low: 1 };
 
-    return tasks.filter((task) => {
-      const matchesSearch =
-        task.title.toLowerCase().includes(query) ||
-        task.project.toLowerCase().includes(query);
+    return tasks
+      .filter((task) => {
+        const matchesSearch =
+          task.title.toLowerCase().includes(query) ||
+          task.project.toLowerCase().includes(query);
+        const matchesStatus =
+          taskFilter === "All tasks" || task.status === taskFilter;
+        const matchesPriority =
+          priorityFilter === "All priorities" || task.priority === priorityFilter;
+        const dueState = getTaskDueState(task);
+        const matchesDueDate =
+          dueDateFilter === "All due dates" ||
+          (dueDateFilter === "Overdue only" && dueState === "Overdue") ||
+          (dueDateFilter === "Due today" && dueState === "Due today") ||
+          (dueDateFilter === "Upcoming" && dueState === "Upcoming") ||
+          (dueDateFilter === "No due date" && dueState === "No due date");
 
-      const matchesStatus =
-        taskFilter === "All tasks" || task.status === taskFilter;
+        return matchesSearch && matchesStatus && matchesPriority && matchesDueDate;
+      })
+      .sort((a, b) => {
+        if (sortTasksBy === "Priority") {
+          return priorityRank[b.priority] - priorityRank[a.priority];
+        }
+        if (sortTasksBy === "Title") {
+          return a.title.localeCompare(b.title);
+        }
+        const dateA = parseTaskDate(a.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const dateB = parseTaskDate(b.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        return dateA - dateB;
+      });
+  }, [tasks, search, taskFilter, priorityFilter, dueDateFilter, sortTasksBy]);
 
-      return matchesSearch && matchesStatus;
-    });
-  }, [tasks, search, taskFilter]);
   function addProject(event) {
     event.preventDefault();
 
@@ -248,15 +301,20 @@ function App() {
     };
 
     setProjects((previousProjects) => [...previousProjects, newProject]);
+    recordActivity(`Created project "${name}"`);
     setNewProjectName("");
     setNewProjectDescription("");
     setShowProjectForm(false);
   }
 
   function updateTaskStatus(taskId, nextStatus) {
+    const task = tasks.find((item) => item.id === taskId);
+    if (task && task.status !== nextStatus) {
+      recordActivity(`Changed "${task.title}" status to ${nextStatus}`);
+    }
     setTasks((currentTasks) =>
-      currentTasks.map((task) =>
-        task.id === taskId ? { ...task, status: nextStatus } : task
+      currentTasks.map((item) =>
+        item.id === taskId ? { ...item, status: nextStatus } : item
       )
     );
   }
@@ -268,9 +326,13 @@ function App() {
       return;
     }
 
+    const task = tasks.find((item) => item.id === taskId);
+    if (task && task[field] !== value) {
+      recordActivity(`Updated ${field === "priority" ? "priority" : "due date"} for "${task.title}"`);
+    }
     setTasks((currentTasks) =>
-      currentTasks.map((task) =>
-        task.id === taskId ? { ...task, [field]: value } : task
+      currentTasks.map((item) =>
+        item.id === taskId ? { ...item, [field]: value } : item
       )
     );
   }
@@ -436,6 +498,28 @@ function App() {
             </button>
           </section>
         </div>
+
+        <section className="content-panel">
+          <div className="section-heading">
+            <div>
+              <h2>Recent activity</h2>
+              <p>Latest changes across your workspace.</p>
+            </div>
+          </div>
+          {activity.length > 0 ? (
+            <div className="task-summary">
+              {activity.slice(0, 5).map((item) => (
+                <div className="task-summary-row" key={item.id}>
+                  <span className="summary-dot progress-dot" />
+                  <span>{item.message}</span>
+                  <small>{new Date(item.createdAt).toLocaleString()}</small>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="metric-note">No activity yet. Task and project changes will appear here.</p>
+          )}
+        </section>
 
         <section className="content-panel team-panel">
           <div className="section-heading">
@@ -745,7 +829,7 @@ function App() {
           <div className="section-heading">
             <div>
               <h2>Task list</h2>
-              <p>Change task status to track progresslocally.</p>
+              <p>Filter, sort, and update task priorities, deadlines, and status.</p>
             </div>
             <span className="project-count">{filteredTasks.length} tasks</span>
           </div>
@@ -773,6 +857,42 @@ function App() {
               <option>In progress</option>
               <option>Completed</option>
             </select>
+
+            <select
+              className="status-filter"
+              value={priorityFilter}
+              onChange={(event) => setPriorityFilter(event.target.value)}
+              aria-label="Filter tasks by priority"
+            >
+              <option>All priorities</option>
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
+            </select>
+
+            <select
+              className="status-filter"
+              value={dueDateFilter}
+              onChange={(event) => setDueDateFilter(event.target.value)}
+              aria-label="Filter tasks by due date"
+            >
+              <option>All due dates</option>
+              <option>Overdue only</option>
+              <option>Due today</option>
+              <option>Upcoming</option>
+              <option>No due date</option>
+            </select>
+
+            <select
+              className="status-filter"
+              value={sortTasksBy}
+              onChange={(event) => setSortTasksBy(event.target.value)}
+              aria-label="Sort tasks"
+            >
+              <option>Due date</option>
+              <option>Priority</option>
+              <option>Title</option>
+            </select>
           </div>
 
           <div className="task-list">
@@ -795,6 +915,9 @@ function App() {
                       {task.title}
                     </strong>
                     <span>{task.project}</span>
+                    <small className={`task-due-state ${getTaskDueState(task).toLowerCase().replaceAll(" ", "-")}`}>
+                      {getTaskDueState(task)}
+                    </small>
                   </div>
                 </div>
 
@@ -846,7 +969,18 @@ function App() {
             {filteredTasks.length === 0 && (
               <div className="empty-state">
                 <strong>No tasks found</strong>
-                <p>Try changing your search or filter.</p>
+                <p>Try changing your search or filters.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setTaskFilter("All tasks");
+                    setPriorityFilter("All priorities");
+                    setDueDateFilter("All due dates");
+                  }}
+                >
+                  Clear filters
+                </button>
               </div>
             )}
           </div>
