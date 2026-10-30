@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import './App.css';
 
 // ==========================================
-// MOCK DATA (Structured to mirror DB schemas)
+// IN-MEMORY MOCK DATA (Aligned with DB Schema)
 // ==========================================
 const initialProjects = [
   {
@@ -13,7 +14,7 @@ const initialProjects = [
     status: "In Progress",
     dueDate: "2025-04-15",
     teamName: "Alpha Squad",
-    teamMembers: ["Keerthi", "Sarah Connor", "Alex Mercer", "David Miller"],
+    teamMembers: ["Keerthi Kumar", "Sarah Connor", "Alex Mercer", "David Miller"],
     techStack: ["React", "Node.js", "Socket.io", "PostgreSQL", "Recharts"]
   },
   {
@@ -24,7 +25,7 @@ const initialProjects = [
     status: "Planning",
     dueDate: "2025-05-30",
     teamName: "Backend Core",
-    teamMembers: ["Keerthi", "Suresh Kumar", "Elena Rostova"],
+    teamMembers: ["Keerthi Kumar", "Suresh Kumar", "Elena Rostova"],
     techStack: ["Express", "MongoDB", "Redis", "Docker", "AWS ECS"]
   },
   {
@@ -59,7 +60,7 @@ const initialTasks = [
     title: "Implement Live Charts",
     status: "Completed",
     dueDate: "2025-02-28",
-    assignedTo: "Keerthi",
+    assignedTo: "Keerthi Kumar",
     onTime: true
   },
   {
@@ -85,7 +86,7 @@ const initialTasks = [
     projectId: 1,
     title: "Draft End-To-End Test Suite",
     status: "To Do",
-    dueDate: "2025-03-01", // Past due, uncompleted = Overdue task
+    dueDate: "2025-03-01",
     assignedTo: "David Miller",
     onTime: false
   },
@@ -115,7 +116,7 @@ const initialTasks = [
     title: "Redis Cache Layer Architecture",
     status: "To Do",
     dueDate: "2025-04-30",
-    assignedTo: "", // Unassigned to test Assignment Coverage
+    assignedTo: "",
     onTime: false
   },
 
@@ -145,7 +146,7 @@ const initialTasks = [
     projectId: 4,
     title: "Design Figma UI Layouts",
     status: "In Progress",
-    dueDate: "2025-03-05", // Overdue if past current date and not completed
+    dueDate: "2025-03-05",
     assignedTo: "Bruce Wayne",
     onTime: false
   },
@@ -155,59 +156,94 @@ const initialTasks = [
     title: "Setup Keychain Biometric Storage",
     status: "To Do",
     dueDate: "2025-05-15",
-    assignedTo: "", // Unassigned
+    assignedTo: "",
     onTime: false
   }
 ];
 
-// ==========================================
-// CORE APP COMPONENT
-// ==========================================
+const TODAY_DATE = "2025-03-02";
+
+// Helper function to extract initials for beautiful avatar badges
+const getInitials = (name) => {
+  if (!name) return "?";
+  return name
+    .split(' ')
+    .map(word => word[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+};
+
 function App() {
-  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'projects', 'project-detail'
+  const [currentView, setCurrentView] = useState('dashboard'); 
   const [projects, setProjects] = useState(initialProjects);
   const [tasks, setTasks] = useState(initialTasks);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
 
-  // Helper metrics calculation for Dashboard Overview
   const totalProjectsCount = projects.length;
   const completedProjectsCount = projects.filter(p => p.status === 'Completed').length;
   const inProgressProjectsCount = projects.filter(p => p.status === 'In Progress').length;
   
-  // Calculate general quick-stats
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'Completed').length;
   const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  // Navigation handlers
   const handleViewProjectDetails = (projectId) => {
     setSelectedProjectId(projectId);
     setCurrentView('project-detail');
+  };
+
+  const handleUpdateTaskStatus = (taskId, newStatus) => {
+    const updatedTasks = tasks.map(task => {
+      if (task.id === taskId) {
+        let onTimeEval = task.onTime;
+        if (newStatus === 'Completed') {
+          onTimeEval = task.dueDate >= TODAY_DATE;
+        }
+        return { 
+          ...task, 
+          status: newStatus, 
+          onTime: onTimeEval 
+        };
+      }
+      return task;
+    });
+    setTasks(updatedTasks);
+
+    if (selectedProjectId) {
+      const projTasks = updatedTasks.filter(t => t.projectId === selectedProjectId);
+      const completedProjTasks = projTasks.filter(t => t.status === 'Completed').length;
+      const progressPercent = projTasks.length > 0 ? Math.round((completedProjTasks / projTasks.length) * 100) : 0;
+      
+      setProjects(prevProjects => prevProjects.map(proj => {
+        if (proj.id === selectedProjectId) {
+          return { 
+            ...proj, 
+            progress: progressPercent,
+            status: progressPercent === 100 ? 'Completed' : 'In Progress'
+          };
+        }
+        return proj;
+      }));
+    }
   };
 
   const getSelectedProjectData = () => {
     const project = projects.find(p => p.id === selectedProjectId);
     if (!project) return null;
 
-    // Filter tasks specific to this project
     const projectTasks = tasks.filter(t => t.projectId === project.id);
     const totalProjTasks = projectTasks.length;
     const completedProjTasks = projectTasks.filter(t => t.status === 'Completed').length;
 
-    // 1. Task Completion Rate
     const completionRate = totalProjTasks > 0 ? Math.round((completedProjTasks / totalProjTasks) * 100) : 0;
-
-    // 2. On-Time Completion Rate (Of completed tasks, how many were marked on-time)
     const onTimeTasks = projectTasks.filter(t => t.status === 'Completed' && t.onTime).length;
     const onTimeRate = completedProjTasks > 0 ? Math.round((onTimeTasks / completedProjTasks) * 100) : 0;
 
-    // 3. Overdue Task Count (To-Do/In-Progress whose dueDate is before today: Let's assume today is March 2, 2025)
-    const todayStr = "2025-03-02";
     const overdueTasksCount = projectTasks.filter(t => {
-      return t.status !== 'Completed' && t.dueDate < todayStr;
+      return t.status !== 'Completed' && t.dueDate < TODAY_DATE;
     }).length;
 
-    // 4. Assignment Coverage (Percentage of tasks assigned to a team member)
     const assignedTasks = projectTasks.filter(t => t.assignedTo && t.assignedTo.trim() !== "").length;
     const coverageRate = totalProjTasks > 0 ? Math.round((assignedTasks / totalProjTasks) * 100) : 0;
 
@@ -241,14 +277,14 @@ function App() {
             <span className="icon">📊</span> Dashboard
           </button>
           <button 
-            className={`nav-item ${currentView === 'projects' || currentView === 'project-detail' ? 'active' : ''}`}
+            className={`nav-item ${currentView === 'projects' || currentView === 'project-detail' || currentView === 'kanban' ? 'active' : ''}`}
             onClick={() => setCurrentView('projects')}
           >
             <span className="icon">💼</span> My Projects
           </button>
         </nav>
         <div className="sidebar-footer">
-          <p className="user-label">Logged in as:</p>
+          <p className="user-label">WORKSPACE WORKER</p>
           <p className="user-name">Keerthi Kumar</p>
         </div>
       </aside>
@@ -257,7 +293,7 @@ function App() {
       <main className="main-content">
         <header className="header-bar">
           <div className="header-search">
-            <input type="text" placeholder="Search projects or metrics..." disabled />
+            <input type="text" placeholder="Search workspace tracks..." disabled />
           </div>
           <div className="profile-indicator">
             <span className="user-badge">KK</span>
@@ -270,7 +306,7 @@ function App() {
             <div className="view-fade-in">
               <div className="welcome-banner">
                 <h1>Welcome back, Keerthi! 👋</h1>
-                <p>Here is your team's project delivery intelligence and status overview.</p>
+                <p>Telemetry stats and collaborative execution matrix.</p>
               </div>
 
               {/* KPI Cards */}
@@ -305,7 +341,6 @@ function App() {
                 </div>
               </div>
 
-              {/* Recent Activity / Quick Projects List */}
               <div className="section-header-row">
                 <h2>Active Projects</h2>
                 <button className="text-action-btn" onClick={() => setCurrentView('projects')}>View Portfolio →</button>
@@ -404,7 +439,6 @@ function App() {
           {/* VIEW: PROJECT DETAILS OVERVIEW */}
           {currentView === 'project-detail' && activeProject && (
             <div className="view-fade-in project-details-page">
-              {/* Back Navigation Header */}
               <div className="back-nav-row">
                 <button className="back-btn" onClick={() => setCurrentView('projects')}>
                   &larr; Back to Projects
@@ -414,7 +448,6 @@ function App() {
                 </div>
               </div>
 
-              {/* Project Title Block Banner */}
               <div className="project-detail-hero">
                 <div className="hero-left">
                   <span className={`status-badge-lg ${activeProject.status.toLowerCase().replace(" ", "-")}`}>
@@ -435,11 +468,8 @@ function App() {
                 </div>
               </div>
 
-              {/* Metrics Delivery Intelligence Row */}
               <h2 className="section-title">Delivery Intelligence Metrics</h2>
               <div className="metrics-summary-grid">
-                
-                {/* Metric Card: Project Progress */}
                 <div className="metric-score-card">
                   <div className="score-header">
                     <h4>Overall Progress</h4>
@@ -457,7 +487,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* Metric Card: Task Completion */}
                 <div className="metric-score-card">
                   <div className="score-header">
                     <h4>Task Completion</h4>
@@ -474,7 +503,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* Metric Card: On-Time Delivery */}
                 <div className="metric-score-card">
                   <div className="score-header">
                     <h4>On-Time Delivery</h4>
@@ -491,7 +519,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* Metric Card: Overdue & Coverage */}
                 <div className="metric-score-card">
                   <div className="score-header">
                     <h4>Overdue Tasks</h4>
@@ -507,19 +534,15 @@ function App() {
                     </span>
                   </div>
                 </div>
-
               </div>
 
-              {/* Tech Stack & Team Members Badging Layout */}
               <div className="details-metadata-split">
-                
-                {/* Tech Stack Badge Cluster */}
                 <div className="meta-badge-box">
                   <div className="box-header">
                     <h3>🛠️ Technology Stack</h3>
                     <span className="badge-count-pill">{activeProject.techStack.length} Techs</span>
                   </div>
-                  <p className="box-explainer">Core framework and developer dependencies mapped to this micro-repository:</p>
+                  <p className="box-explainer">Core framework and developer dependencies mapped to this repository:</p>
                   <div className="badge-pool">
                     {activeProject.techStack.map((tech, index) => (
                       <span key={index} className="badge-tag tech-pill">
@@ -529,7 +552,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* Team Members Badge Cluster */}
                 <div className="meta-badge-box">
                   <div className="box-header">
                     <h3>👥 Active Team Roster</h3>
@@ -545,15 +567,13 @@ function App() {
                     ))}
                   </div>
                 </div>
-
               </div>
 
-              {/* Tasks Breakdown list preview */}
               <div className="associated-tasks-section">
                 <div className="tasks-section-header">
                   <h3>Project Implementation Plan Preview</h3>
-                  <button className="kanban-jump-btn" disabled>
-                    ⚡ Open Full Kanban Board (Coming Day 2)
+                  <button className="kanban-jump-btn active" onClick={() => setCurrentView('kanban')}>
+                    ⚡ Open Full Kanban Board
                   </button>
                 </div>
                 <div className="simple-task-list">
@@ -575,7 +595,181 @@ function App() {
                   )}
                 </div>
               </div>
+            </div>
+          )}
 
+          {/* VIEW: PROJECT KANBAN BOARD */}
+          {currentView === 'kanban' && activeProject && (
+            <div className="view-fade-in kanban-board-page">
+              <div className="back-nav-row">
+                <button className="back-btn" onClick={() => setCurrentView('project-detail')}>
+                  &larr; Back to Overview
+                </button>
+                <div className="breadcrumbs">
+                  <span>Projects</span> / <span>{activeProject.name}</span> / <span className="active-breadcrumb">Kanban Board</span>
+                </div>
+              </div>
+
+              <div className="kanban-title-banner">
+                <div>
+                  <h1 className="kanban-main-title">📋 {activeProject.name} Board</h1>
+                  <p className="kanban-sub-desc">Track tasks, update process states, and keep deliveries on time under <strong>{activeProject.teamName}</strong>.</p>
+                </div>
+                <div className="kanban-progress-mini">
+                  <span className="mini-lbl">Health: {activeProject.progress}%</span>
+                  <div className="progress-bar-bg width-120">
+                    <div className="progress-bar-fill" style={{ width: `${activeProject.progress}%` }}></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="kanban-grid">
+                
+                {/* COLUMN: TO DO */}
+                <div className="kanban-column todo-col">
+                  <div className="kanban-column-header">
+                    <span className="col-status-dot todo"></span>
+                    <h3>To Do</h3>
+                    <span className="col-counter-pill">
+                      {activeProject.tasks.filter(t => t.status === 'To Do').length}
+                    </span>
+                  </div>
+                  
+                  <div className="kanban-cards-wrapper">
+                    {activeProject.tasks.filter(t => t.status === 'To Do').length === 0 ? (
+                      <p className="kanban-empty-lbl">No tasks in To Do column.</p>
+                    ) : (
+                      activeProject.tasks.filter(t => t.status === 'To Do').map(task => {
+                        const isOverdue = task.dueDate < TODAY_DATE;
+                        return (
+                          <div key={task.id} className="kanban-task-card">
+                            <div className="card-tags-row">
+                              {isOverdue && <span className="overdue-tag-pill">⚠️ Overdue</span>}
+                              <span className="task-id-badge">#{task.id}</span>
+                            </div>
+                            <h4 className="card-task-title">{task.title}</h4>
+                            <div className="card-assignee-row">
+                              <span className="avatar-circle-ring ring-todo">
+                                {getInitials(task.assignedTo)}
+                              </span>
+                              <span className="assignee-text">{task.assignedTo || "Unassigned"}</span>
+                            </div>
+                            <div className="card-due-indicator">
+                              📅 Due: {task.dueDate}
+                            </div>
+                            <div className="card-action-bar">
+                              <button 
+                                className="action-btn-start"
+                                onClick={() => handleUpdateTaskStatus(task.id, 'In Progress')}
+                              >
+                                Start Work &rarr;
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* COLUMN: IN PROGRESS */}
+                <div className="kanban-column progress-col">
+                  <div className="kanban-column-header">
+                    <span className="col-status-dot in-progress"></span>
+                    <h3>In Progress</h3>
+                    <span className="col-counter-pill">
+                      {activeProject.tasks.filter(t => t.status === 'In Progress').length}
+                    </span>
+                  </div>
+
+                  <div className="kanban-cards-wrapper">
+                    {activeProject.tasks.filter(t => t.status === 'In Progress').length === 0 ? (
+                      <p className="kanban-empty-lbl">No tasks in progress.</p>
+                    ) : (
+                      activeProject.tasks.filter(t => t.status === 'In Progress').map(task => {
+                        const isOverdue = task.dueDate < TODAY_DATE;
+                        return (
+                          <div key={task.id} className="kanban-task-card card-active-glow">
+                            <div className="card-tags-row">
+                              {isOverdue && <span className="overdue-tag-pill">⚠️ Overdue</span>}
+                              <span className="task-id-badge">#{task.id}</span>
+                            </div>
+                            <h4 className="card-task-title">{task.title}</h4>
+                            <div className="card-assignee-row">
+                              <span className="avatar-circle-ring ring-progress">
+                                {getInitials(task.assignedTo)}
+                              </span>
+                              <span className="assignee-text">{task.assignedTo || "Unassigned"}</span>
+                            </div>
+                            <div className="card-due-indicator">
+                              📅 Due: {task.dueDate}
+                            </div>
+                            <div className="card-action-bar flex-between">
+                              <button 
+                                className="action-btn-back"
+                                onClick={() => handleUpdateTaskStatus(task.id, 'To Do')}
+                              >
+                                &larr; Reset
+                              </button>
+                              <button 
+                                className="action-btn-complete"
+                                onClick={() => handleUpdateTaskStatus(task.id, 'Completed')}
+                              >
+                                Complete ✓
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* COLUMN: COMPLETED */}
+                <div className="kanban-column completed-col">
+                  <div className="kanban-column-header">
+                    <span className="col-status-dot completed"></span>
+                    <h3>Completed</h3>
+                    <span className="col-counter-pill">
+                      {activeProject.tasks.filter(t => t.status === 'Completed').length}
+                    </span>
+                  </div>
+
+                  <div className="kanban-cards-wrapper">
+                    {activeProject.tasks.filter(t => t.status === 'Completed').length === 0 ? (
+                      <p className="kanban-empty-lbl">No completed tasks yet.</p>
+                    ) : (
+                      activeProject.tasks.filter(t => t.status === 'Completed').map(task => (
+                        <div key={task.id} className="kanban-task-card completed">
+                          <div className="card-tags-row">
+                            <span className="completed-badge-pill">✓ Finished</span>
+                            <span className="task-id-badge">#{task.id}</span>
+                          </div>
+                          <h4 className="card-task-title strike-through">{task.title}</h4>
+                          <div className="card-assignee-row">
+                            <span className="avatar-circle-ring ring-completed">
+                              {getInitials(task.assignedTo)}
+                            </span>
+                            <span className="assignee-text secondary-styled">{task.assignedTo || "Unassigned"}</span>
+                          </div>
+                          <div className="card-due-indicator">
+                            🔒 Closed on schedule
+                          </div>
+                          <div className="card-action-bar">
+                            <button 
+                              className="action-btn-reopen"
+                              onClick={() => handleUpdateTaskStatus(task.id, 'In Progress')}
+                            >
+                              Reopen Task ↺
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+              </div>
             </div>
           )}
         </div>
