@@ -1,781 +1,1084 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import './App.css';
 
 // ==========================================
-// IN-MEMORY MOCK DATA (Aligned with DB Schema)
+// RELATIONAL INITIAL SEED DATA (PDF PAGE 6 COMPLIANT)
 // ==========================================
-const initialProjects = [
-  {
-    id: 1,
-    name: "Phoenix Client Dashboard",
-    description: "Modernizing the key legacy client analytics portal with real-time web socket data feeds.",
-    progress: 78,
-    status: "In Progress",
-    dueDate: "2025-04-15",
-    teamName: "Alpha Squad",
-    teamMembers: ["Keerthi Kumar", "Sarah Connor", "Alex Mercer", "David Miller"],
-    techStack: ["React", "Node.js", "Socket.io", "PostgreSQL", "Recharts"]
+const INITIAL_USERS = [
+  { id: 'usr-1', name: 'Elena Rostova', email: 'elena@flowboard.io', role: 'owner', avatar: '👩‍💻' },
+  { id: 'usr-2', name: 'Sarah Jenkins', email: 'sarah@flowboard.io', role: 'manager', avatar: '👩‍💼' },
+  { id: 'usr-3', name: 'Alex Rivera', email: 'alex@flowboard.io', role: 'employee', avatar: '👨‍💻' },
+  { id: 'usr-4', name: 'Dave Kincaid', email: 'dave@flowboard.io', role: 'employee', avatar: '⚙️' },
+];
+
+const INITIAL_PROJECTS = [
+  { 
+    id: 'proj-alpha', 
+    name: 'Project Alpha (Smart Recruitment)', 
+    workspace: 'Global HR Workspace',
+    techStack: 'React, Node.js, PostgreSQL', 
+    description: 'Enterprise ATS system with automated resume ingestion pipelines and multi-tenant isolation.', 
+    targetDeadline: '2025-03-28',
+    managerId: 'usr-2' 
   },
-  {
-    id: 2,
-    name: "Global Inventory API",
-    description: "High-throughput RESTful inventory gateway servicing 12 regional fulfillment microservices.",
-    progress: 40,
-    status: "Planning",
-    dueDate: "2025-05-30",
-    teamName: "Backend Core",
-    teamMembers: ["Keerthi Kumar", "Suresh Kumar", "Elena Rostova"],
-    techStack: ["Express", "MongoDB", "Redis", "Docker", "AWS ECS"]
-  },
-  {
-    id: 3,
-    name: "AI Copilot Integration",
-    description: "Injecting fine-tuned LLM completion and code generation agents inside the customer support console.",
-    progress: 100,
-    status: "Completed",
-    dueDate: "2025-02-10",
-    teamName: "Cognitive Labs",
-    teamMembers: ["Sarah Connor", "Alex Mercer", "Diana Prince"],
-    techStack: ["Python", "FastAPI", "LangChain", "OpenAI API", "VectorDB"]
-  },
-  {
-    id: 4,
-    name: "Mobile Wallet Refresh",
-    description: "Redesigning checkout pathways and face-ID biometric handshakes inside the Android/iOS client.",
-    progress: 15,
-    status: "In Progress",
-    dueDate: "2025-06-25",
-    teamName: "Mobile Edge",
-    teamMembers: ["David Miller", "Bruce Wayne", "Clark Kent"],
-    techStack: ["React Native", "TypeScript", "Redux Toolkit", "Biometrics API"]
+  { 
+    id: 'proj-beta', 
+    name: 'Project Beta (Metrics & Analytics)', 
+    workspace: 'Core Platform Team',
+    techStack: 'Python, FastAPI, TimescaleDB', 
+    description: 'High-throughput analytics engines calculating live metrics, workspace progress, and pipeline latency.', 
+    targetDeadline: '2025-04-15',
+    managerId: 'usr-1' 
   }
 ];
 
-const initialTasks = [
-  // Phoenix Client Dashboard (ID: 1)
-  {
-    id: 101,
-    projectId: 1,
-    title: "Implement Live Charts",
-    status: "Completed",
-    dueDate: "2025-02-28",
-    assignedTo: "Keerthi Kumar",
-    onTime: true
-  },
-  {
-    id: 102,
-    projectId: 1,
-    title: "Configure PostgreSQL Schema",
-    status: "Completed",
-    dueDate: "2025-02-20",
-    assignedTo: "Alex Mercer",
-    onTime: true
-  },
-  {
-    id: 103,
-    projectId: 1,
-    title: "WebSocket Connection Optimization",
-    status: "In Progress",
-    dueDate: "2025-03-10",
-    assignedTo: "Sarah Connor",
-    onTime: false
-  },
-  {
-    id: 104,
-    projectId: 1,
-    title: "Draft End-To-End Test Suite",
-    status: "To Do",
-    dueDate: "2025-03-01",
-    assignedTo: "David Miller",
-    onTime: false
-  },
-
-  // Global Inventory API (ID: 2)
-  {
-    id: 201,
-    projectId: 2,
-    title: "Define Swagger API Specs",
-    status: "Completed",
-    dueDate: "2025-02-22",
-    assignedTo: "Suresh Kumar",
-    onTime: true
-  },
-  {
-    id: 202,
-    projectId: 2,
-    title: "Dockerize Database Containers",
-    status: "To Do",
-    dueDate: "2025-04-10",
-    assignedTo: "Elena Rostova",
-    onTime: false
-  },
-  {
-    id: 203,
-    projectId: 2,
-    title: "Redis Cache Layer Architecture",
-    status: "To Do",
-    dueDate: "2025-04-30",
-    assignedTo: "",
-    onTime: false
-  },
-
-  // AI Copilot Integration (ID: 3)
-  {
-    id: 301,
-    projectId: 3,
-    title: "Fine-tune OpenAI Prompt templates",
-    status: "Completed",
-    dueDate: "2025-01-15",
-    assignedTo: "Sarah Connor",
-    onTime: true
-  },
-  {
-    id: 302,
-    projectId: 3,
-    title: "Implement Token Cost Rate Limiter",
-    status: "Completed",
-    dueDate: "2025-02-05",
-    assignedTo: "Alex Mercer",
-    onTime: true
-  },
-
-  // Mobile Wallet Refresh (ID: 4)
-  {
-    id: 401,
-    projectId: 4,
-    title: "Design Figma UI Layouts",
-    status: "In Progress",
-    dueDate: "2025-03-05",
-    assignedTo: "Bruce Wayne",
-    onTime: false
-  },
-  {
-    id: 402,
-    projectId: 4,
-    title: "Setup Keychain Biometric Storage",
-    status: "To Do",
-    dueDate: "2025-05-15",
-    assignedTo: "",
-    onTime: false
-  }
+const INITIAL_TASKS = [
+  { id: 'task-1', projectId: 'proj-alpha', title: 'Design DB Schemas & Multitenancy', assigneeId: 'usr-1', status: 'Done', priority: 'High', dueDate: '2025-03-01', completedDate: '2025-03-01' },
+  { id: 'task-2', projectId: 'proj-alpha', title: 'Implement Resume Upload Validation', assigneeId: 'usr-3', status: 'In Progress', priority: 'Medium', dueDate: '2025-03-06' },
+  { id: 'task-3', projectId: 'proj-alpha', title: 'Configure SMTP Notification Routes', assigneeId: 'usr-2', status: 'To Do', priority: 'Low', dueDate: '2025-02-28' }, // Overdue
+  { id: 'task-4', projectId: 'proj-beta', title: 'Deploy TimescaleDB Tuning Pipeline', assigneeId: 'usr-4', status: 'In Progress', priority: 'High', dueDate: '2025-03-12' },
+  { id: 'task-5', projectId: 'proj-beta', title: 'Verify Real-time Metric Sync Hook', assigneeId: 'usr-3', status: 'Done', priority: 'Medium', dueDate: '2025-03-02', completedDate: '2025-03-02' },
 ];
 
-const TODAY_DATE = "2025-03-02";
+const INITIAL_WORK_PLANS = [
+  { id: 'plan-1', userId: 'usr-3', focusText: 'ATS Database Tuning Session', date: '2025-03-05', type: 'tuning' },
+  { id: 'plan-2', userId: 'usr-4', focusText: 'API Gateway Security Audit', date: '2025-03-12', type: 'focus' },
+  { id: 'plan-3', userId: 'usr-2', focusText: 'Annual Leave / Out of Office', date: '2025-03-15', type: 'leave' },
+  { id: 'plan-4', userId: 'usr-3', focusText: 'Duplicate Sprint Refactoring Block', date: '2025-03-05', type: 'focus' }, // Creates overload collision warning
+];
 
-// Helper function to extract initials for beautiful avatar badges
-const getInitials = (name) => {
-  if (!name) return "?";
-  return name
-    .split(' ')
-    .map(word => word[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-};
-
-function App() {
-  const [currentView, setCurrentView] = useState('dashboard'); 
-  const [projects, setProjects] = useState(initialProjects);
-  const [tasks, setTasks] = useState(initialTasks);
-  const [selectedProjectId, setSelectedProjectId] = useState(null);
-
-  const totalProjectsCount = projects.length;
-  const completedProjectsCount = projects.filter(p => p.status === 'Completed').length;
-  const inProgressProjectsCount = projects.filter(p => p.status === 'In Progress').length;
+export default function App() {
+  // Navigation & Core States
+  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, projects, project-detail, kanban, my-todos, calendar
+  const [selectedProjectId, setSelectedProjectId] = useState('proj-alpha');
+  const [systemDate] = useState('2025-03-02'); // Fixed target evaluation date as baseline
   
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === 'Completed').length;
-  const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  // Dynamic Datasets (API Mock-Swappable)
+  const [users, setUsers] = useState(INITIAL_USERS);
+  const [projects, setProjects] = useState(INITIAL_PROJECTS);
+  const [tasks, setTasks] = useState(INITIAL_TASKS);
+  const [workPlans, setWorkPlans] = useState(INITIAL_WORK_PLANS);
 
-  const handleViewProjectDetails = (projectId) => {
-    setSelectedProjectId(projectId);
-    setCurrentView('project-detail');
+  // Filter States for 'My To-Dos'
+  const [filterAssignee, setFilterAssignee] = useState('all');
+  const [filterProject, setFilterProject] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+
+  // Modal Control States
+  const [showProvisionModal, setShowProvisionModal] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+
+  // Form Fields: Project Provisioning
+  const [newProjName, setNewProjName] = useState('');
+  const [newProjWorkspace, setNewProjWorkspace] = useState('');
+  const [newProjTech, setNewProjTech] = useState('');
+  const [newProjDesc, setNewProjDesc] = useState('');
+  const [newProjDeadline, setNewProjDeadline] = useState('');
+  const [newProjManager, setNewProjManager] = useState(INITIAL_USERS[0].id);
+
+  // Form Fields: Focus Planner
+  const [planUser, setPlanUser] = useState(INITIAL_USERS[0].id);
+  const [planFocusText, setPlanFocusText] = useState('');
+  const [planDate, setPlanDate] = useState('2025-03-05');
+  const [planType, setPlanType] = useState('focus');
+
+  // Form Fields: Task Creator/Editor
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskProject, setTaskProject] = useState(INITIAL_PROJECTS[0].id);
+  const [taskAssignee, setTaskAssignee] = useState(INITIAL_USERS[0].id);
+  const [taskStatus, setTaskStatus] = useState('To Do');
+  const [taskPriority, setTaskPriority] = useState('Medium');
+  const [taskDueDate, setTaskDueDate] = useState('2025-03-10');
+
+  // Interactive Calendar Selection
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState('2025-03-05');
+
+  // ==========================================
+  // REAL-TIME METRICS CALCULATION (PDF COMPLIANT)
+  // ==========================================
+  const computedMetrics = useMemo(() => {
+    return projects.map(proj => {
+      const projTasks = tasks.filter(t => t.projectId === proj.id);
+      const total = projTasks.length;
+      const completed = projTasks.filter(t => t.status === 'Done').length;
+      
+      // Task Completion Rate
+      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+      
+      // On-Time Completion Rate
+      const completedWithDueDates = projTasks.filter(t => t.status === 'Done' && t.dueDate);
+      const onTimeCompleted = completedWithDueDates.filter(t => {
+        if (!t.completedDate) return false;
+        return new Date(t.completedDate) <= new Date(t.dueDate);
+      }).length;
+      const onTimeRate = completedWithDueDates.length > 0 
+        ? Math.round((onTimeCompleted / completedWithDueDates.length) * 100) 
+        : 100; // Defaults to 100% on-time if all completed were on-time
+
+      // Overdue Counts (Status !== Done && Due Date < System Date)
+      const overdueCount = projTasks.filter(t => {
+        return t.status !== 'Done' && t.dueDate && new Date(t.dueDate) < new Date(systemDate);
+      }).length;
+
+      // Assignment Coverage Rate (Tasks with assigned owner / total tasks)
+      const assignedCount = projTasks.filter(t => t.assigneeId).length;
+      const coverageRate = total > 0 ? Math.round((assignedCount / total) * 100) : 0;
+
+      return {
+        projectId: proj.id,
+        name: proj.name,
+        completionRate,
+        onTimeRate,
+        overdueCount,
+        coverageRate,
+        totalTasks: total,
+        completedTasks: completed
+      };
+    });
+  }, [projects, tasks, systemDate]);
+
+  // Overall Global Aggregates
+  const globalMetrics = useMemo(() => {
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.status === 'Done').length;
+    const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const overdue = tasks.filter(t => t.status !== 'Done' && t.dueDate && new Date(t.dueDate) < new Date(systemDate)).length;
+    const assigned = tasks.filter(t => t.assigneeId).length;
+    const coverage = total > 0 ? Math.round((assigned / total) * 100) : 0;
+
+    return {
+      completionRate,
+      overdue,
+      coverage,
+      totalTasks: total,
+      completedTasks: completed
+    };
+  }, [tasks, systemDate]);
+
+  // ==========================================
+  // HANDLERS (DYNAMIC & PROTECTED)
+  // ==========================================
+  const handleProvisionProject = (e) => {
+    e.preventDefault();
+    if (!newProjName.trim()) return;
+
+    const newId = `proj-${Date.now()}`;
+    const newProjectNode = {
+      id: newId,
+      name: newProjName,
+      workspace: newProjWorkspace || 'Default Organization',
+      techStack: newProjTech || 'N/A',
+      description: newProjDesc || 'No description provided.',
+      targetDeadline: newProjDeadline || '2025-12-31',
+      managerId: newProjManager
+    };
+
+    setProjects([...projects, newProjectNode]);
+    
+    // Auto-select the newly created project node
+    setSelectedProjectId(newId);
+    setShowProvisionModal(false);
+
+    // Reset Form
+    setNewProjName('');
+    setNewProjWorkspace('');
+    setNewProjTech('');
+    setNewProjDesc('');
   };
 
-  const handleUpdateTaskStatus = (taskId, newStatus) => {
-    const updatedTasks = tasks.map(task => {
-      if (task.id === taskId) {
-        let onTimeEval = task.onTime;
-        if (newStatus === 'Completed') {
-          onTimeEval = task.dueDate >= TODAY_DATE;
-        }
-        return { 
-          ...task, 
-          status: newStatus, 
-          onTime: onTimeEval 
-        };
-      }
-      return task;
-    });
-    setTasks(updatedTasks);
+  const handleCreatePlan = (e) => {
+    e.preventDefault();
+    if (!planFocusText.trim()) return;
 
-    if (selectedProjectId) {
-      const projTasks = updatedTasks.filter(t => t.projectId === selectedProjectId);
-      const completedProjTasks = projTasks.filter(t => t.status === 'Completed').length;
-      const progressPercent = projTasks.length > 0 ? Math.round((completedProjTasks / projTasks.length) * 100) : 0;
-      
-      setProjects(prevProjects => prevProjects.map(proj => {
-        if (proj.id === selectedProjectId) {
-          return { 
-            ...proj, 
-            progress: progressPercent,
-            status: progressPercent === 100 ? 'Completed' : 'In Progress'
+    const newPlan = {
+      id: `plan-${Date.now()}`,
+      userId: planUser,
+      focusText: planFocusText,
+      date: planDate,
+      type: planType
+    };
+
+    setWorkPlans([...workPlans, newPlan]);
+    setShowPlanModal(false);
+    setPlanFocusText('');
+  };
+
+  const handleOpenTaskDeployer = (taskObj = null) => {
+    if (taskObj) {
+      setEditingTask(taskObj);
+      setTaskTitle(taskObj.title);
+      setTaskProject(taskObj.projectId);
+      setTaskAssignee(taskObj.assigneeId);
+      setTaskStatus(taskObj.status);
+      setTaskPriority(taskObj.priority);
+      setTaskDueDate(taskObj.dueDate || '');
+    } else {
+      setEditingTask(null);
+      setTaskTitle('');
+      setTaskProject(selectedProjectId || projects[0]?.id || '');
+      setTaskAssignee(users[0]?.id || '');
+      setTaskStatus('To Do');
+      setTaskPriority('Medium');
+      setTaskDueDate('2025-03-10');
+    }
+    setShowTaskModal(true);
+  };
+
+  const handleSaveTask = (e) => {
+    e.preventDefault();
+    if (!taskTitle.trim()) return;
+
+    if (editingTask) {
+      // Edit Mode
+      setTasks(tasks.map(t => {
+        if (t.id === editingTask.id) {
+          const wasDone = t.status === 'Done';
+          const isNowDone = taskStatus === 'Done';
+          return {
+            ...t,
+            title: taskTitle,
+            projectId: taskProject,
+            assigneeId: taskAssignee,
+            status: taskStatus,
+            priority: taskPriority,
+            dueDate: taskDueDate,
+            completedDate: isNowDone ? (wasDone ? t.completedDate : systemDate) : undefined
           };
         }
-        return proj;
+        return t;
       }));
+    } else {
+      // Create Mode
+      const newTask = {
+        id: `task-${Date.now()}`,
+        projectId: taskProject,
+        title: taskTitle,
+        assigneeId: taskAssignee,
+        status: taskStatus,
+        priority: taskPriority,
+        dueDate: taskDueDate,
+        completedDate: taskStatus === 'Done' ? systemDate : undefined
+      };
+      setTasks([...tasks, newTask]);
+    }
+
+    setShowTaskModal(false);
+    setEditingTask(null);
+  };
+
+  const handleDeleteTask = (taskId) => {
+    if (window.confirm("Are you sure you want to delete this task?")) {
+      setTasks(tasks.filter(t => t.id !== taskId));
+      setShowTaskModal(false);
+      setEditingTask(null);
     }
   };
 
-  const getSelectedProjectData = () => {
-    const project = projects.find(p => p.id === selectedProjectId);
-    if (!project) return null;
+  // ==========================================
+  // HELPERS FOR VIEWS
+  // ==========================================
+  const activeProject = projects.find(p => p.id === selectedProjectId) || projects[0];
+  const activeProjectMetrics = computedMetrics.find(m => m.projectId === (activeProject?.id || ''));
 
-    const projectTasks = tasks.filter(t => t.projectId === project.id);
-    const totalProjTasks = projectTasks.length;
-    const completedProjTasks = projectTasks.filter(t => t.status === 'Completed').length;
-
-    const completionRate = totalProjTasks > 0 ? Math.round((completedProjTasks / totalProjTasks) * 100) : 0;
-    const onTimeTasks = projectTasks.filter(t => t.status === 'Completed' && t.onTime).length;
-    const onTimeRate = completedProjTasks > 0 ? Math.round((onTimeTasks / completedProjTasks) * 100) : 0;
-
-    const overdueTasksCount = projectTasks.filter(t => {
-      return t.status !== 'Completed' && t.dueDate < TODAY_DATE;
-    }).length;
-
-    const assignedTasks = projectTasks.filter(t => t.assignedTo && t.assignedTo.trim() !== "").length;
-    const coverageRate = totalProjTasks > 0 ? Math.round((assignedTasks / totalProjTasks) * 100) : 0;
-
-    return {
-      ...project,
-      tasks: projectTasks,
-      metrics: {
-        completionRate,
-        onTimeRate,
-        overdueTasksCount,
-        coverageRate,
-        totalProjTasks
-      }
-    };
+  // Get User Name and Avatar safe utilities
+  const getUserProfile = (userId) => {
+    const u = users.find(x => x.id === userId);
+    return u ? { name: u.name, avatar: u.avatar, role: u.role } : { name: 'Unassigned', avatar: '👤', role: 'employee' };
   };
 
-  const activeProject = getSelectedProjectData();
+  // Calendar Day Generation (March 2025)
+  const calendarDays = useMemo(() => {
+    const days = [];
+    for (let i = 1; i <= 31; i++) {
+      const dayStr = `2025-03-${i < 10 ? '0' + i : i}`;
+      // Find events and check conflicts
+      const dayPlans = workPlans.filter(p => p.date === dayStr);
+      
+      // Determine conflicts: check if any individual user has > 1 plan allocated on this specific day
+      const userAllocations = {};
+      dayPlans.forEach(p => {
+        userAllocations[p.userId] = (userAllocations[p.userId] || 0) + 1;
+      });
+      const hasConflict = Object.values(userAllocations).some(count => count > 1);
+
+      days.push({
+        dayNumber: i,
+        dateString: dayStr,
+        plans: dayPlans,
+        hasConflict
+      });
+    }
+    return days;
+  }, [workPlans]);
+
+  // Unified To-Do Filter Calculation
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(t => {
+      const matchAssignee = filterAssignee === 'all' || t.assigneeId === filterAssignee;
+      const matchProject = filterProject === 'all' || t.projectId === filterProject;
+      const matchStatus = filterStatus === 'all' || t.status === filterStatus;
+      return matchAssignee && matchProject && matchStatus;
+    });
+  }, [tasks, filterAssignee, filterProject, filterStatus]);
 
   return (
     <div className="app-container">
-      {/* Sidebar Navigation */}
-      <aside className="sidebar">
-        <div className="logo-container">
-          <h2 className="logo-text">FlowBoard</h2>
+      {/* GLOWING HEADER */}
+      <header className="main-header">
+        <div className="header-brand">
+          <div className="neon-orb"></div>
+          <h1>FlowBoard <span className="sub-tag">Enterprise SaaS Core</span></h1>
         </div>
-        <nav className="nav-menu">
-          <button 
-            className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setCurrentView('dashboard')}
-          >
-            <span className="icon">📊</span> Dashboard
-          </button>
-          <button 
-            className={`nav-item ${currentView === 'projects' || currentView === 'project-detail' || currentView === 'kanban' ? 'active' : ''}`}
-            onClick={() => setCurrentView('projects')}
-          >
-            <span className="icon">💼</span> My Projects
-          </button>
+        <nav className="header-nav">
+          <button className={`nav-btn ${currentView === 'dashboard' ? 'active' : ''}`} onClick={() => setCurrentView('dashboard')}>Dashboard</button>
+          <button className={`nav-btn ${currentView === 'projects' ? 'active' : ''}`} onClick={() => setCurrentView('projects')}>Projects Mapping</button>
+          <button className={`nav-btn ${currentView === 'kanban' ? 'active' : ''}`} onClick={() => setCurrentView('kanban')}>Kanban Pipelines</button>
+          <button className={`nav-btn ${currentView === 'my-todos' ? 'active' : ''}`} onClick={() => setCurrentView('my-todos')}>Global To-Dos</button>
+          <button className={`nav-btn ${currentView === 'calendar' ? 'active' : ''}`} onClick={() => setCurrentView('calendar')}>Conflict Scheduler</button>
         </nav>
-        <div className="sidebar-footer">
-          <p className="user-label">WORKSPACE WORKER</p>
-          <p className="user-name">Keerthi Kumar</p>
+        <div className="header-actions">
+          <button className="terminal-trigger" onClick={() => setShowProvisionModal(true)}>
+            ⚡ Provision Node
+          </button>
         </div>
-      </aside>
+      </header>
 
-      {/* Main Content Area */}
-      <main className="main-content">
-        <header className="header-bar">
-          <div className="header-search">
-            <input type="text" placeholder="Search workspace tracks..." disabled />
-          </div>
-          <div className="profile-indicator">
-            <span className="user-badge">KK</span>
-          </div>
-        </header>
+      {/* CORE FRAMEWORK BODY */}
+      <main className="view-container">
 
-        <div className="content-body">
-          {/* VIEW: DASHBOARD */}
-          {currentView === 'dashboard' && (
-            <div className="view-fade-in">
-              <div className="welcome-banner">
-                <h1>Welcome back, Keerthi! 👋</h1>
-                <p>Telemetry stats and collaborative execution matrix.</p>
+        {/* ==========================================
+            1. GLOBAL DASHBOARD VIEW
+            ========================================== */}
+        {currentView === 'dashboard' && (
+          <div className="dashboard-grid fade-in">
+            {/* Top Workspace Aggregates */}
+            <div className="full-width-card welcome-hero">
+              <div className="hero-text">
+                <h2>Workspace Pipeline Orchestrator</h2>
+                <p>Global Evaluation Target Baseline: <strong>{systemDate}</strong></p>
               </div>
-
-              {/* KPI Cards */}
-              <div className="kpi-grid">
-                <div className="kpi-card">
-                  <span className="kpi-icon blue">📁</span>
-                  <div className="kpi-info">
-                    <h3>Total Projects</h3>
-                    <p className="kpi-value">{totalProjectsCount}</p>
-                  </div>
+              <div className="quick-metrics-row">
+                <div className="stat-node">
+                  <span className="stat-label">Total Core Nodes</span>
+                  <span className="stat-val">{projects.length}</span>
                 </div>
-                <div className="kpi-card">
-                  <span className="kpi-icon yellow">⏳</span>
-                  <div className="kpi-info">
-                    <h3>In Progress</h3>
-                    <p className="kpi-value">{inProgressProjectsCount}</p>
-                  </div>
+                <div className="stat-node">
+                  <span className="stat-label">Global Task Completion</span>
+                  <span className="stat-val">{globalMetrics.completionRate}%</span>
                 </div>
-                <div className="kpi-card">
-                  <span className="kpi-icon green">✅</span>
-                  <div className="kpi-info">
-                    <h3>Completed</h3>
-                    <p className="kpi-value">{completedProjectsCount}</p>
-                  </div>
+                <div className="stat-node text-alert">
+                  <span className="stat-label">Total Overdue Items</span>
+                  <span className="stat-val">{globalMetrics.overdue}</span>
                 </div>
-                <div className="kpi-card">
-                  <span className="kpi-icon purple">🎯</span>
-                  <div className="kpi-info">
-                    <h3>Avg Task Progress</h3>
-                    <p className="kpi-value">{taskCompletionRate}%</p>
-                  </div>
+                <div className="stat-node">
+                  <span className="stat-label">Assignment Coverage</span>
+                  <span className="stat-val">{globalMetrics.coverage}%</span>
                 </div>
               </div>
+            </div>
 
-              <div className="section-header-row">
-                <h2>Active Projects</h2>
-                <button className="text-action-btn" onClick={() => setCurrentView('projects')}>View Portfolio →</button>
+            {/* List of Active Project Nodes with Metrics */}
+            <div className="panel-col card">
+              <div className="panel-header">
+                <h3>Active Project Nodes</h3>
+                <span className="badge">Calculations Active</span>
               </div>
-
-              <div className="projects-grid">
-                {projects.map(project => (
-                  <div 
-                    key={project.id} 
-                    className="project-card interactive"
-                    onClick={() => handleViewProjectDetails(project.id)}
-                  >
-                    <div className="card-header">
-                      <span className={`status-badge ${project.status.toLowerCase().replace(" ", "-")}`}>
-                        {project.status}
-                      </span>
-                      <span className="due-date">Due: {project.dueDate}</span>
-                    </div>
-                    <h3>{project.name}</h3>
-                    <p className="project-desc">{project.description}</p>
-                    
-                    <div className="progress-section">
-                      <div className="progress-label">
-                        <span>Progress</span>
-                        <span>{project.progress}%</span>
+              <div className="project-nodes-list">
+                {projects.map(proj => {
+                  const m = computedMetrics.find(metric => metric.projectId === proj.id);
+                  const isSelected = selectedProjectId === proj.id;
+                  return (
+                    <div 
+                      key={proj.id} 
+                      className={`project-node-item ${isSelected ? 'selected' : ''}`}
+                      onClick={() => {
+                        setSelectedProjectId(proj.id);
+                        setCurrentView('project-detail');
+                      }}
+                    >
+                      <div className="node-info">
+                        <h4>{proj.name}</h4>
+                        <p className="tech-stack-tag">{proj.techStack}</p>
                       </div>
-                      <div className="progress-bar-bg">
-                        <div className="progress-bar-fill" style={{ width: `${project.progress}%` }}></div>
+                      <div className="node-stats">
+                        <div className="stat-bar-container">
+                          <div className="stat-bar-fill" style={{ width: `${m?.completionRate || 0}%` }}></div>
+                        </div>
+                        <span className="stat-percent">{m?.completionRate || 0}% Done</span>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
 
-                    <div className="card-footer-tags">
-                      <span className="tag-micro">👥 {project.teamName}</span>
-                      <span className="tag-micro">🛠️ {project.techStack.length} Techs</span>
+            {/* Live Analytics Dashboard Summary */}
+            <div className="panel-col card">
+              <div className="panel-header">
+                <h3>System Integrity Metrics (SaaS Targets)</h3>
+              </div>
+              <div className="analytics-details-list">
+                {computedMetrics.map(m => (
+                  <div key={m.projectId} className="integrity-card">
+                    <h5>{m.name}</h5>
+                    <div className="metric-row">
+                      <span>On-Time Completion Rate:</span>
+                      <strong className={m.onTimeRate < 70 ? 'warn' : 'good'}>{m.onTimeRate}%</strong>
+                    </div>
+                    <div className="metric-row">
+                      <span>Assigned Resource Coverage:</span>
+                      <strong>{m.coverageRate}%</strong>
+                    </div>
+                    <div className="metric-row">
+                      <span>Critical Overdue Task Alerts:</span>
+                      <strong className={m.overdueCount > 0 ? 'critical' : 'good'}>{m.overdueCount} Critical</strong>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* VIEW: MY PROJECTS */}
-          {currentView === 'projects' && (
-            <div className="view-fade-in">
-              <div className="portfolio-header">
-                <div>
-                  <h1>My Projects Portfolio</h1>
-                  <p>Enterprise level workspace and metrics overview</p>
-                </div>
-              </div>
-
-              <div className="projects-grid">
-                {projects.map(project => (
-                  <div 
-                    key={project.id} 
-                    className="project-card interactive-heavy"
-                    onClick={() => handleViewProjectDetails(project.id)}
-                  >
-                    <div className="card-header">
-                      <span className={`status-badge ${project.status.toLowerCase().replace(" ", "-")}`}>
-                        {project.status}
-                      </span>
-                      <span className="due-date-bold">⏳ {project.dueDate}</span>
-                    </div>
-                    
-                    <h2 className="project-title-large">{project.name}</h2>
-                    <p className="project-desc">{project.description}</p>
-                    
-                    <div className="tech-badge-row">
-                      {project.techStack.slice(0, 3).map((tech, idx) => (
-                        <span key={idx} className="tech-micro-tag">{tech}</span>
-                      ))}
-                      {project.techStack.length > 3 && <span className="tech-micro-tag count">+{project.techStack.length - 3}</span>}
-                    </div>
-
-                    <div className="progress-section">
-                      <div className="progress-label">
-                        <span>Overall Health</span>
-                        <span>{project.progress}%</span>
+        {/* ==========================================
+            2. PROJECTS MAPPING LIST
+            ========================================== */}
+        {currentView === 'projects' && (
+          <div className="projects-view fade-in">
+            <div className="section-header">
+              <h2>All Initialized Project Nodes</h2>
+              <button className="primary-btn" onClick={() => setShowProvisionModal(true)}>+ Provision New Node</button>
+            </div>
+            <div className="projects-card-grid">
+              {projects.map(proj => {
+                const m = computedMetrics.find(metric => metric.projectId === proj.id);
+                const manager = getUserProfile(proj.managerId);
+                return (
+                  <div key={proj.id} className="project-profile-card card">
+                    <div className="profile-header">
+                      <div>
+                        <h3>{proj.name}</h3>
+                        <span className="workspace-tag">{proj.workspace}</span>
                       </div>
-                      <div className="progress-bar-bg">
-                        <div className="progress-bar-fill" style={{ width: `${project.progress}%` }}></div>
+                      <span className="tech-badge">{proj.techStack}</span>
+                    </div>
+                    <p className="project-desc">{proj.description}</p>
+                    <div className="profile-manager">
+                      <span>Responsible Manager:</span>
+                      <strong>{manager.avatar} {manager.name} ({manager.role})</strong>
+                    </div>
+                    <div className="profile-metrics">
+                      <div className="metric-box">
+                        <span className="box-val">{m?.completionRate || 0}%</span>
+                        <span className="box-lbl">Completion</span>
+                      </div>
+                      <div className="metric-box">
+                        <span className="box-val">{m?.onTimeRate || 0}%</span>
+                        <span className="box-lbl">On-Time</span>
+                      </div>
+                      <div className="metric-box">
+                        <span className="box-val text-alert">{m?.overdueCount || 0}</span>
+                        <span className="box-lbl">Overdue</span>
                       </div>
                     </div>
-
-                    <div className="card-expanded-footer">
-                      <span className="team-indicator">🏡 {project.teamName}</span>
-                      <button className="view-details-action">View Intelligence ➔</button>
+                    <div className="profile-footer">
+                      <span>Target: {proj.targetDeadline}</span>
+                      <button className="action-link" onClick={() => {
+                        setSelectedProjectId(proj.id);
+                        setCurrentView('project-detail');
+                      }}>Enter Diagnostics →</button>
                     </div>
                   </div>
-                ))}
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ==========================================
+            3. PROJECT DETAIL & DIAGNOSTICS VIEW
+            ========================================== */}
+        {currentView === 'project-detail' && activeProject && (
+          <div className="project-details-view fade-in">
+            <div className="details-header-row">
+              <button className="back-link" onClick={() => setCurrentView('dashboard')}>← Back to Main Dashboard</button>
+              <div className="header-meta">
+                <h2>{activeProject.name} <span className="accent-text">({activeProject.workspace})</span></h2>
+                <span className="tech-badge">{activeProject.techStack}</span>
               </div>
             </div>
-          )}
 
-          {/* VIEW: PROJECT DETAILS OVERVIEW */}
-          {currentView === 'project-detail' && activeProject && (
-            <div className="view-fade-in project-details-page">
-              <div className="back-nav-row">
-                <button className="back-btn" onClick={() => setCurrentView('projects')}>
-                  &larr; Back to Projects
-                </button>
-                <div className="breadcrumbs">
-                  <span>Workspace</span> / <span>Projects</span> / <span className="active-breadcrumb">{activeProject.name}</span>
+            <div className="details-layout-grid">
+              <div className="sidebar-details card">
+                <h4>Node Specifications</h4>
+                <div className="detail-spec">
+                  <label>Target Deadline</label>
+                  <p>{activeProject.targetDeadline}</p>
                 </div>
-              </div>
-
-              <div className="project-detail-hero">
-                <div className="hero-left">
-                  <span className={`status-badge-lg ${activeProject.status.toLowerCase().replace(" ", "-")}`}>
-                    {activeProject.status}
-                  </span>
-                  <h1 className="hero-title">{activeProject.name}</h1>
-                  <p className="hero-desc">{activeProject.description}</p>
+                <div className="detail-spec">
+                  <label>Responsible Node Manager</label>
+                  <p>{getUserProfile(activeProject.managerId).avatar} {getUserProfile(activeProject.managerId).name}</p>
                 </div>
-                <div className="hero-right">
-                  <div className="hero-meta-item">
-                    <span className="meta-label">DUE DATE</span>
-                    <span className="meta-val">{activeProject.dueDate}</span>
-                  </div>
-                  <div className="hero-meta-item">
-                    <span className="meta-label">TEAM ASSIGNED</span>
-                    <span className="meta-val highlight-purple">{activeProject.teamName}</span>
-                  </div>
-                </div>
-              </div>
-
-              <h2 className="section-title">Delivery Intelligence Metrics</h2>
-              <div className="metrics-summary-grid">
-                <div className="metric-score-card">
-                  <div className="score-header">
-                    <h4>Overall Progress</h4>
-                    <span className="score-icon">📈</span>
-                  </div>
-                  <div className="score-body">
-                    <div className="score-percentage-circle">
-                      <span className="percentage-value">{activeProject.progress}%</span>
-                    </div>
-                  </div>
-                  <div className="score-footer">
-                    <div className="progress-bar-bg min-height">
-                      <div className="progress-bar-fill" style={{ width: `${activeProject.progress}%` }}></div>
-                    </div>
-                  </div>
+                <div className="detail-spec">
+                  <label>Core Description</label>
+                  <p className="italic">{activeProject.description}</p>
                 </div>
 
-                <div className="metric-score-card">
-                  <div className="score-header">
-                    <h4>Task Completion</h4>
-                    <span className="score-icon">🎯</span>
+                <div className="diagnostics-panel-alert">
+                  <h4>Metric Evaluations</h4>
+                  <div className="diag-row">
+                    <span>Task Completion Rate:</span>
+                    <strong>{activeProjectMetrics?.completionRate}%</strong>
                   </div>
-                  <div className="score-body">
-                    <p className="score-large-stat">{activeProject.metrics.completionRate}%</p>
-                    <p className="score-subtext">
-                      {activeProject.tasks.filter(t => t.status === 'Completed').length} of {activeProject.metrics.totalProjTasks} tasks finished
-                    </p>
+                  <div className="diag-row">
+                    <span>On-Time Delivery Target:</span>
+                    <strong>{activeProjectMetrics?.onTimeRate}%</strong>
                   </div>
-                  <div className="score-footer">
-                    <span className="score-badge-indicator green">Healthy Stream</span>
-                  </div>
-                </div>
-
-                <div className="metric-score-card">
-                  <div className="score-header">
-                    <h4>On-Time Delivery</h4>
-                    <span className="score-icon">⚡</span>
-                  </div>
-                  <div className="score-body">
-                    <p className="score-large-stat">{activeProject.metrics.onTimeRate}%</p>
-                    <p className="score-subtext">Completed prior or on due-dates</p>
-                  </div>
-                  <div className="score-footer">
-                    <span className={`score-badge-indicator ${activeProject.metrics.onTimeRate >= 75 ? 'green' : 'orange'}`}>
-                      {activeProject.metrics.onTimeRate >= 75 ? 'Optimal Flow' : 'Minor Latency'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="metric-score-card">
-                  <div className="score-header">
-                    <h4>Overdue Tasks</h4>
-                    <span className="score-icon alert-icon">⚠️</span>
-                  </div>
-                  <div className="score-body">
-                    <p className="score-large-stat alert-text">{activeProject.metrics.overdueTasksCount}</p>
-                    <p className="score-subtext">Awaiting resolution action</p>
-                  </div>
-                  <div className="score-footer">
-                    <span className="score-badge-indicator purple">
-                      Coverage: {activeProject.metrics.coverageRate}%
-                    </span>
+                  <div className="diag-row">
+                    <span>Active Team Allocation:</span>
+                    <strong>{activeProjectMetrics?.coverageRate}% Covered</strong>
                   </div>
                 </div>
               </div>
 
-              <div className="details-metadata-split">
-                <div className="meta-badge-box">
-                  <div className="box-header">
-                    <h3>🛠️ Technology Stack</h3>
-                    <span className="badge-count-pill">{activeProject.techStack.length} Techs</span>
-                  </div>
-                  <p className="box-explainer">Core framework and developer dependencies mapped to this repository:</p>
-                  <div className="badge-pool">
-                    {activeProject.techStack.map((tech, index) => (
-                      <span key={index} className="badge-tag tech-pill">
-                        {tech}
-                      </span>
-                    ))}
-                  </div>
+              <div className="main-tasks-panel card">
+                <div className="panel-header-action">
+                  <h3>Active Pipeline Tickets</h3>
+                  <button className="primary-btn" onClick={() => handleOpenTaskDeployer()}>+ Deploy Task Card</button>
                 </div>
-
-                <div className="meta-badge-box">
-                  <div className="box-header">
-                    <h3>👥 Active Team Roster</h3>
-                    <span className="badge-count-pill">{activeProject.teamMembers.length} Members</span>
-                  </div>
-                  <p className="box-explainer">Engineering specialists assigned to task tracks under <strong>{activeProject.teamName}</strong>:</p>
-                  <div className="badge-pool">
-                    {activeProject.teamMembers.map((member, index) => (
-                      <span key={index} className="badge-tag member-pill">
-                        <span className="avatar-dot"></span>
-                        {member}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="associated-tasks-section">
-                <div className="tasks-section-header">
-                  <h3>Project Implementation Plan Preview</h3>
-                  <button className="kanban-jump-btn active" onClick={() => setCurrentView('kanban')}>
-                    ⚡ Open Full Kanban Board
-                  </button>
-                </div>
-                <div className="simple-task-list">
-                  {activeProject.tasks.length === 0 ? (
-                    <p className="no-tasks-alert">No roadmap tasks created yet for this project.</p>
-                  ) : (
-                    activeProject.tasks.map(task => (
-                      <div key={task.id} className="task-preview-row">
-                        <div className="task-left">
-                          <span className={`task-status-indicator ${task.status.toLowerCase().replace(" ", "-")}`}></span>
-                          <span className="task-title-text">{task.title}</span>
+                <div className="tasks-interactive-list">
+                  {tasks.filter(t => t.projectId === activeProject.id).map(task => {
+                    const assignee = getUserProfile(task.assigneeId);
+                    const isOverdue = task.status !== 'Done' && task.dueDate && new Date(task.dueDate) < new Date(systemDate);
+                    return (
+                      <div key={task.id} className={`task-card-item ${isOverdue ? 'overdue-border' : ''}`}>
+                        <div className="card-top">
+                          <span className={`priority-badge ${task.priority.toLowerCase()}`}>{task.priority}</span>
+                          <span className={`status-badge ${task.status.replace(/\s+/g, '-').toLowerCase()}`}>{task.status}</span>
                         </div>
-                        <div className="task-right">
-                          <span className="task-assignee">👤 {task.assignedTo || "Unassigned"}</span>
-                          <span className="task-due">📅 {task.dueDate}</span>
+                        <h4>{task.title}</h4>
+                        <div className="card-bottom">
+                          <span className="assignee-info">{assignee.avatar} {assignee.name}</span>
+                          <div className="due-info">
+                            <span className="due-date">Due: {task.dueDate || 'No Limit'}</span>
+                            {isOverdue && <span className="overdue-tag">OVERDUE</span>}
+                          </div>
+                        </div>
+                        <div className="card-edit-overlay">
+                          <button className="edit-overlay-btn" onClick={() => handleOpenTaskDeployer(task)}>Edit Card</button>
                         </div>
                       </div>
-                    ))
+                    );
+                  })}
+                  {tasks.filter(t => t.projectId === activeProject.id).length === 0 && (
+                    <div className="empty-state">
+                      <p>No active tasks in this project pipeline node.</p>
+                      <button className="action-link" onClick={() => handleOpenTaskDeployer()}>Create First Task Now</button>
+                    </div>
                   )}
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* VIEW: PROJECT KANBAN BOARD */}
-          {currentView === 'kanban' && activeProject && (
-            <div className="view-fade-in kanban-board-page">
-              <div className="back-nav-row">
-                <button className="back-btn" onClick={() => setCurrentView('project-detail')}>
-                  &larr; Back to Overview
-                </button>
-                <div className="breadcrumbs">
-                  <span>Projects</span> / <span>{activeProject.name}</span> / <span className="active-breadcrumb">Kanban Board</span>
-                </div>
+        {/* ==========================================
+            4. KANBAN PIPELINES VIEW
+            ========================================== */}
+        {currentView === 'kanban' && (
+          <div className="kanban-view fade-in">
+            <div className="section-header-filters">
+              <div>
+                <h2>Workspace Pipeline Kanban</h2>
+                <p>Orchestrate and update tasks interactively. Select active project node context:</p>
               </div>
-
-              <div className="kanban-title-banner">
-                <div>
-                  <h1 className="kanban-main-title">📋 {activeProject.name} Board</h1>
-                  <p className="kanban-sub-desc">Track tasks, update process states, and keep deliveries on time under <strong>{activeProject.teamName}</strong>.</p>
-                </div>
-                <div className="kanban-progress-mini">
-                  <span className="mini-lbl">Health: {activeProject.progress}%</span>
-                  <div className="progress-bar-bg width-120">
-                    <div className="progress-bar-fill" style={{ width: `${activeProject.progress}%` }}></div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="kanban-grid">
-                
-                {/* COLUMN: TO DO */}
-                <div className="kanban-column todo-col">
-                  <div className="kanban-column-header">
-                    <span className="col-status-dot todo"></span>
-                    <h3>To Do</h3>
-                    <span className="col-counter-pill">
-                      {activeProject.tasks.filter(t => t.status === 'To Do').length}
-                    </span>
-                  </div>
-                  
-                  <div className="kanban-cards-wrapper">
-                    {activeProject.tasks.filter(t => t.status === 'To Do').length === 0 ? (
-                      <p className="kanban-empty-lbl">No tasks in To Do column.</p>
-                    ) : (
-                      activeProject.tasks.filter(t => t.status === 'To Do').map(task => {
-                        const isOverdue = task.dueDate < TODAY_DATE;
-                        return (
-                          <div key={task.id} className="kanban-task-card">
-                            <div className="card-tags-row">
-                              {isOverdue && <span className="overdue-tag-pill">⚠️ Overdue</span>}
-                              <span className="task-id-badge">#{task.id}</span>
-                            </div>
-                            <h4 className="card-task-title">{task.title}</h4>
-                            <div className="card-assignee-row">
-                              <span className="avatar-circle-ring ring-todo">
-                                {getInitials(task.assignedTo)}
-                              </span>
-                              <span className="assignee-text">{task.assignedTo || "Unassigned"}</span>
-                            </div>
-                            <div className="card-due-indicator">
-                              📅 Due: {task.dueDate}
-                            </div>
-                            <div className="card-action-bar">
-                              <button 
-                                className="action-btn-start"
-                                onClick={() => handleUpdateTaskStatus(task.id, 'In Progress')}
-                              >
-                                Start Work &rarr;
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-
-                {/* COLUMN: IN PROGRESS */}
-                <div className="kanban-column progress-col">
-                  <div className="kanban-column-header">
-                    <span className="col-status-dot in-progress"></span>
-                    <h3>In Progress</h3>
-                    <span className="col-counter-pill">
-                      {activeProject.tasks.filter(t => t.status === 'In Progress').length}
-                    </span>
-                  </div>
-
-                  <div className="kanban-cards-wrapper">
-                    {activeProject.tasks.filter(t => t.status === 'In Progress').length === 0 ? (
-                      <p className="kanban-empty-lbl">No tasks in progress.</p>
-                    ) : (
-                      activeProject.tasks.filter(t => t.status === 'In Progress').map(task => {
-                        const isOverdue = task.dueDate < TODAY_DATE;
-                        return (
-                          <div key={task.id} className="kanban-task-card card-active-glow">
-                            <div className="card-tags-row">
-                              {isOverdue && <span className="overdue-tag-pill">⚠️ Overdue</span>}
-                              <span className="task-id-badge">#{task.id}</span>
-                            </div>
-                            <h4 className="card-task-title">{task.title}</h4>
-                            <div className="card-assignee-row">
-                              <span className="avatar-circle-ring ring-progress">
-                                {getInitials(task.assignedTo)}
-                              </span>
-                              <span className="assignee-text">{task.assignedTo || "Unassigned"}</span>
-                            </div>
-                            <div className="card-due-indicator">
-                              📅 Due: {task.dueDate}
-                            </div>
-                            <div className="card-action-bar flex-between">
-                              <button 
-                                className="action-btn-back"
-                                onClick={() => handleUpdateTaskStatus(task.id, 'To Do')}
-                              >
-                                &larr; Reset
-                              </button>
-                              <button 
-                                className="action-btn-complete"
-                                onClick={() => handleUpdateTaskStatus(task.id, 'Completed')}
-                              >
-                                Complete ✓
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-
-                {/* COLUMN: COMPLETED */}
-                <div className="kanban-column completed-col">
-                  <div className="kanban-column-header">
-                    <span className="col-status-dot completed"></span>
-                    <h3>Completed</h3>
-                    <span className="col-counter-pill">
-                      {activeProject.tasks.filter(t => t.status === 'Completed').length}
-                    </span>
-                  </div>
-
-                  <div className="kanban-cards-wrapper">
-                    {activeProject.tasks.filter(t => t.status === 'Completed').length === 0 ? (
-                      <p className="kanban-empty-lbl">No completed tasks yet.</p>
-                    ) : (
-                      activeProject.tasks.filter(t => t.status === 'Completed').map(task => (
-                        <div key={task.id} className="kanban-task-card completed">
-                          <div className="card-tags-row">
-                            <span className="completed-badge-pill">✓ Finished</span>
-                            <span className="task-id-badge">#{task.id}</span>
-                          </div>
-                          <h4 className="card-task-title strike-through">{task.title}</h4>
-                          <div className="card-assignee-row">
-                            <span className="avatar-circle-ring ring-completed">
-                              {getInitials(task.assignedTo)}
-                            </span>
-                            <span className="assignee-text secondary-styled">{task.assignedTo || "Unassigned"}</span>
-                          </div>
-                          <div className="card-due-indicator">
-                            🔒 Closed on schedule
-                          </div>
-                          <div className="card-action-bar">
-                            <button 
-                              className="action-btn-reopen"
-                              onClick={() => handleUpdateTaskStatus(task.id, 'In Progress')}
-                            >
-                              Reopen Task ↺
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
+              <div className="context-selector">
+                <label>Project Context:</label>
+                <select value={selectedProjectId} onChange={(e) => setSelectedProjectId(e.target.value)}>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button className="primary-btn" onClick={() => handleOpenTaskDeployer()}>+ Add Task Card</button>
               </div>
             </div>
-          )}
-        </div>
+
+            <div className="kanban-board">
+              {['To Do', 'In Progress', 'Review', 'Done'].map(statusCol => {
+                const columnTasks = tasks.filter(t => t.projectId === selectedProjectId && t.status === statusCol);
+                return (
+                  <div key={statusCol} className="kanban-column">
+                    <div className="column-header">
+                      <h3>{statusCol}</h3>
+                      <span className="col-count">{columnTasks.length}</span>
+                    </div>
+                    <div className="column-body">
+                      {columnTasks.map(task => {
+                        const assignee = getUserProfile(task.assigneeId);
+                        const isOverdue = task.status !== 'Done' && task.dueDate && new Date(task.dueDate) < new Date(systemDate);
+                        return (
+                          <div key={task.id} className={`kanban-card ${isOverdue ? 'overdue' : ''}`} onClick={() => handleOpenTaskDeployer(task)}>
+                            <div className="kanban-card-header">
+                              <span className={`priority-tag ${task.priority.toLowerCase()}`}>{task.priority}</span>
+                              {isOverdue && <span className="warning-label-inline">Overdue</span>}
+                            </div>
+                            <p className="kanban-title">{task.title}</p>
+                            <div className="kanban-card-footer">
+                              <span className="kanban-assignee" title={assignee.name}>{assignee.avatar} {assignee.name.split(' ')[0]}</span>
+                              <span className="kanban-due">{task.dueDate}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {columnTasks.length === 0 && (
+                        <div className="column-empty">Drop / Add Tasks Here</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ==========================================
+            5. GLOBAL CROSS-PROJECT TO-DO LIST VIEW
+            ========================================== */}
+        {currentView === 'my-todos' && (
+          <div className="my-todos-view fade-in">
+            <div className="section-header">
+              <h2>Unified Workspace Task Ledger</h2>
+              <button className="primary-btn" onClick={() => handleOpenTaskDeployer()}>+ Create Task</button>
+            </div>
+
+            {/* Filter Hub Panel */}
+            <div className="filters-hub card">
+              <div className="filter-group">
+                <label>Assignee Filter:</label>
+                <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)}>
+                  <option value="all">All Workspace Personnel</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.avatar} {u.name} ({u.role})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Project Map Filter:</label>
+                <select value={filterProject} onChange={(e) => setFilterProject(e.target.value)}>
+                  <option value="all">All Active Project Nodes</option>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Pipeline Status:</label>
+                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                  <option value="all">All Status Pillars</option>
+                  <option value="To Do">To Do</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Review">Review</option>
+                  <option value="Done">Done</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Structured Table for To-Dos */}
+            <div className="table-responsive card">
+              <table className="ledger-table">
+                <thead>
+                  <tr>
+                    <th>Task Card Details</th>
+                    <th>Associated Project Map</th>
+                    <th>Assignee Specialist</th>
+                    <th>Priority</th>
+                    <th>Due Target</th>
+                    <th>Calculated Status</th>
+                    <th>Operations</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTasks.map(task => {
+                    const assignee = getUserProfile(task.assigneeId);
+                    const proj = projects.find(p => p.id === task.projectId);
+                    const isOverdue = task.status !== 'Done' && task.dueDate && new Date(task.dueDate) < new Date(systemDate);
+                    return (
+                      <tr key={task.id} className={isOverdue ? 'row-overdue-alert' : ''}>
+                        <td>
+                          <div className="task-ledger-title">
+                            <strong>{task.title}</strong>
+                            {isOverdue && <span className="overdue-badge">Overdue Target</span>}
+                          </div>
+                        </td>
+                        <td>{proj ? proj.name : 'Unknown Node'}</td>
+                        <td>{assignee.avatar} {assignee.name}</td>
+                        <td>
+                          <span className={`priority-badge ${task.priority.toLowerCase()}`}>{task.priority}</span>
+                        </td>
+                        <td>{task.dueDate || 'Undefined'}</td>
+                        <td>
+                          <span className={`status-pill ${task.status.replace(/\s+/g, '-').toLowerCase()}`}>{task.status}</span>
+                        </td>
+                        <td>
+                          <button className="table-action-btn" onClick={() => handleOpenTaskDeployer(task)}>Edit</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredTasks.length === 0 && (
+                    <tr>
+                      <td colSpan="7" className="empty-cell">No tasks match selected workspace query filters.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ==========================================
+            6. CONFLICT SCHEDULER & MONTH PLANNER
+            ========================================== */}
+        {currentView === 'calendar' && (
+          <div className="calendar-view fade-in">
+            <div className="section-header-filters">
+              <div>
+                <h2>Workspace Resource & Conflict Matrix</h2>
+                <p>Plan schedules, track leaf slots, or database tuning. Active month evaluation: <strong>March 2025</strong></p>
+              </div>
+              <button className="primary-btn" onClick={() => setShowPlanModal(true)}>+ Register New Daily Focus</button>
+            </div>
+
+            <div className="calendar-layout-wrapper">
+              {/* Left Calendar Grid */}
+              <div className="calendar-grid-card card">
+                <div className="calendar-days-header">
+                  <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+                </div>
+                <div className="calendar-days-grid">
+                  {/* Padding to start Wednesday March 1st */}
+                  <div className="calendar-pad-day"></div>
+                  <div className="calendar-pad-day"></div>
+
+                  {calendarDays.map(day => {
+                    const isSelected = selectedCalendarDate === day.dateString;
+                    return (
+                      <div 
+                        key={day.dayNumber} 
+                        className={`calendar-day-cell ${isSelected ? 'selected' : ''} ${day.hasConflict ? 'collision-danger' : ''}`}
+                        onClick={() => setSelectedCalendarDate(day.dateString)}
+                      >
+                        <div className="day-number-header">
+                          <span>{day.dayNumber}</span>
+                          {day.hasConflict && <span className="collision-warning-orb" title="Workload Collision Alert!">⚠️</span>}
+                        </div>
+                        <div className="day-plans-preview">
+                          {day.plans.slice(0, 2).map(p => {
+                            const user = getUserProfile(p.userId);
+                            return (
+                              <div key={p.id} className={`plan-chip ${p.type}`}>
+                                {user.avatar} {p.focusText.slice(0, 10)}...
+                              </div>
+                            );
+                          })}
+                          {day.plans.length > 2 && <span className="more-plans-tag">+{day.plans.length - 2} more</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right Diagnostics Side Panel */}
+              <div className="calendar-diagnostics card">
+                <h3>Milestone Diagnostics</h3>
+                <p className="sub-label">Evaluation Date: <strong>{selectedCalendarDate}</strong></p>
+                
+                <div className="diagnostics-event-list">
+                  <h4>Scheduled Workspace Activities</h4>
+                  {workPlans.filter(p => p.date === selectedCalendarDate).map(p => {
+                    const user = getUserProfile(p.userId);
+                    return (
+                      <div key={p.id} className={`diagnostics-event-item border-${p.type}`}>
+                        <div className="item-header">
+                          <strong>{user.avatar} {user.name} ({user.role})</strong>
+                          <span className={`plan-type-pill ${p.type}`}>{p.type}</span>
+                        </div>
+                        <p className="plan-text">"{p.focusText}"</p>
+                      </div>
+                    );
+                  })}
+                  {workPlans.filter(p => p.date === selectedCalendarDate).length === 0 && (
+                    <div className="empty-diagnostics">
+                      <p>No specialist allocations registered for this calendar date.</p>
+                      <button className="action-link" onClick={() => {
+                        setPlanDate(selectedCalendarDate);
+                        setShowPlanModal(true);
+                      }}>Allocate Day Focus Now</button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Overload Analyzer */}
+                <div className="overload-analyser-box">
+                  <h4>Collision Matrix Assessment</h4>
+                  {(() => {
+                    const dayPlans = workPlans.filter(p => p.date === selectedCalendarDate);
+                    const counts = {};
+                    dayPlans.forEach(p => counts[p.userId] = (counts[p.userId] || 0) + 1);
+                    const overloads = Object.entries(counts).filter(([_, count]) => count > 1);
+                    
+                    if (overloads.length > 0) {
+                      return (
+                        <div className="analyzer-alert positive">
+                          <span className="danger-text">⚠️ CRITICAL OVERLOAD ENCOUNTERED:</span>
+                          <ul>
+                            {overloads.map(([uid, count]) => {
+                              const u = getUserProfile(uid);
+                              return (
+                                <li key={uid}>
+                                  <strong>{u.name}</strong> has been assigned {count} concurrent priority items for this calendar slot.
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="analyzer-alert negative">
+                        <span className="safe-text">✅ Workspace calendar collision matrix looks stable.</span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
+
+      {/* ==========================================
+          MODAL: PROJECT PROVISIONING TERMINAL
+          ========================================== */}
+      {showProvisionModal && (
+        <div className="modal-backdrop">
+          <div className="modal-panel glass-modal">
+            <div className="modal-header">
+              <h3>⚡ Project Provisioning Terminal</h3>
+              <button className="close-btn" onClick={() => setShowProvisionModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleProvisionProject} className="modal-form">
+              <div className="form-group">
+                <label>Project Node Identifier Name:</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., Project Gamma" 
+                  value={newProjName} 
+                  onChange={(e) => setNewProjName(e.target.value)} 
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Workspace / Target Division:</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., Systems Platform Core" 
+                  value={newProjWorkspace} 
+                  onChange={(e) => setNewProjWorkspace(e.target.value)} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Technology Stack Frameworks:</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., Node, Redis, PostgreSQL" 
+                  value={newProjTech} 
+                  onChange={(e) => setNewProjTech(e.target.value)} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Project Objective Description:</label>
+                <textarea 
+                  placeholder="Describe the workspace objective node parameters..." 
+                  value={newProjDesc} 
+                  onChange={(e) => setNewProjDesc(e.target.value)}
+                ></textarea>
+              </div>
+              <div className="form-row">
+                <div className="form-group half">
+                  <label>Target Delivery Date:</label>
+                  <input 
+                    type="date" 
+                    value={newProjDeadline} 
+                    onChange={(e) => setNewProjDeadline(e.target.value)} 
+                  />
+                </div>
+                <div className="form-group half">
+                  <label>Responsible Manager:</label>
+                  <select value={newProjManager} onChange={(e) => setNewProjManager(e.target.value)}>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="sec-btn" onClick={() => setShowProvisionModal(false)}>Cancel</button>
+                <button type="submit" className="primary-btn">Initialize Project Node</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          MODAL: WORKER FOCUS & SCHEDULE PLANNER
+          ========================================== */}
+      {showPlanModal && (
+        <div className="modal-backdrop">
+          <div className="modal-panel glass-modal">
+            <div className="modal-header">
+              <h3>📅 Worker Daily Focus & Month Planner</h3>
+              <button className="close-btn" onClick={() => setShowPlanModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleCreatePlan} className="modal-form">
+              <div className="form-group">
+                <label>Select Team Specialist:</label>
+                <select value={planUser} onChange={(e) => setPlanUser(e.target.value)}>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.avatar} {u.name} ({u.role})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Focus Allocation Description:</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., PostgreSQL Performance Optimization" 
+                  value={planFocusText} 
+                  onChange={(e) => setPlanFocusText(e.target.value)} 
+                  required 
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-group half">
+                  <label>Target Date Slot (March 2025):</label>
+                  <input 
+                    type="date" 
+                    value={planDate} 
+                    onChange={(e) => setPlanDate(e.target.value)} 
+                  />
+                </div>
+                <div className="form-group half">
+                  <label>Allocation Stream Classification:</label>
+                  <select value={planType} onChange={(e) => setPlanType(e.target.value)}>
+                    <option value="focus">Priority Task Block</option>
+                    <option value="tuning">Database Tuning Slot</option>
+                    <option value="leave">Worker Leave / OOO</option>
+                  </select>
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="sec-btn" onClick={() => setShowPlanModal(false)}>Cancel</button>
+                <button type="submit" className="primary-btn">Deploy Schedule Slot</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          MODAL: TASK DEPLOYER & CARD EDITOR
+          ========================================== */}
+      {showTaskModal && (
+        <div className="modal-backdrop">
+          <div className="modal-panel glass-modal">
+            <div className="modal-header">
+              <h3>{editingTask ? '⚙️ Edit Task Specifications' : '🚀 Deploy New Workspace Task Card'}</h3>
+              <button className="close-btn" onClick={() => setShowTaskModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleSaveTask} className="modal-form">
+              <div className="form-group">
+                <label>Task Description Title:</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., Write API Unit Tests" 
+                  value={taskTitle} 
+                  onChange={(e) => setTaskTitle(e.target.value)} 
+                  required 
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-group half">
+                  <label>Associated Project Mapping Node:</label>
+                  <select value={taskProject} onChange={(e) => setTaskProject(e.target.value)}>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group half">
+                  <label>Assigned Resource:</label>
+                  <select value={taskAssignee} onChange={(e) => setTaskAssignee(e.target.value)}>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.avatar} {u.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group half">
+                  <label>Pillar Column Status:</label>
+                  <select value={taskStatus} onChange={(e) => setTaskStatus(e.target.value)}>
+                    <option value="To Do">To Do</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Review">Review</option>
+                    <option value="Done">Done</option>
+                  </select>
+                </div>
+                <div className="form-group half">
+                  <label>System Severity Priority:</label>
+                  <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value)}>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Target Delivery Date:</label>
+                <input 
+                  type="date" 
+                  value={taskDueDate} 
+                  onChange={(e) => setTaskDueDate(e.target.value)} 
+                />
+              </div>
+              <div className="modal-actions-spaced">
+                {editingTask ? (
+                  <button type="button" className="danger-btn" onClick={() => handleDeleteTask(editingTask.id)}>
+                    Delete Card
+                  </button>
+                ) : <div />}
+                <div className="action-right">
+                  <button type="button" className="sec-btn" onClick={() => setShowTaskModal(false)}>Cancel</button>
+                  <button type="submit" className="primary-btn">Commit Changes</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-export default App;
+
+
+
