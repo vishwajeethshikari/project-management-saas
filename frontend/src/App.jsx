@@ -195,13 +195,44 @@ function App() {
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
 
- useEffect(() => {
-  try {
-    localStorage.setItem("projectflow-tasks", JSON.stringify(tasks));
-  } catch (error) {
-    console.error("Failed to save tasks:", error);
+  // Persist projects so newly created projects remain after a page refresh.
+  useEffect(() => {
+    try {
+      localStorage.setItem("projectflow-projects", JSON.stringify(projects));
+    } catch (error) {
+      console.error("Failed to save projects:", error);
+    }
+  }, [projects]);
+
+  // Persist task updates in the browser.
+  useEffect(() => {
+    try {
+      localStorage.setItem("projectflow-tasks", JSON.stringify(tasks));
+    } catch (error) {
+      console.error("Failed to save tasks:", error);
+    }
+  }, [tasks]);
+
+  // Persist the latest activity entries.
+  useEffect(() => {
+    try {
+      localStorage.setItem("projectflow-activity", JSON.stringify(activity));
+    } catch (error) {
+      console.error("Failed to save activity:", error);
+    }
+  }, [activity]);
+
+  function recordActivity(message) {
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      message,
+      createdAt: new Date().toISOString(),
+    };
+
+    setActivity((currentActivity) =>
+      [entry, ...currentActivity].slice(0, 20)
+    );
   }
-}, [tasks]);
 
   const activeProjects = useMemo(
     () => projects.filter((project) => project.status === "In progress"),
