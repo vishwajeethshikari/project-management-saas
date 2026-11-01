@@ -1,6 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
+
+// Safely read and parse data from browser storage.
+function readStorage(key, fallback) {
+  try {
+    const storedValue = window.localStorage.getItem(key);
+    if (storedValue === null) return fallback;
+
+    return JSON.parse(storedValue);
+  } catch (error) {
+    console.error(`Failed to read "${key}" from localStorage:`, error);
+    return fallback;
+  }
+}
+
+// Safely serialize and save data to browser storage.
+function writeStorage(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (error) {
+    console.error(`Failed to save "${key}" to localStorage:`, error);
+    return false;
+  }
+}
+
 const initialProjects = [
   {
     id: 1,
@@ -38,34 +63,24 @@ const initialProjects = [
 ];
 
 function loadProjects() {
-  try {
-    const savedProjects = localStorage.getItem("projectflow-projects");
+  const parsedProjects = readStorage("projectflow-projects", initialProjects);
 
-    if (!savedProjects) {
-      return initialProjects;
-    }
-
-    const parsedProjects = JSON.parse(savedProjects);
-
-    if (!Array.isArray(parsedProjects)) {
-      return initialProjects;
-    }
-
-    // Fill in fields used by the UI so older saved project records remain compatible.
-    return parsedProjects.map((project) => ({
-      ...project,
-      status: project.status === "In Progress" ? "In progress" : (project.status || "In progress"),
-      description: project.description || "No description provided",
-      owner: project.owner || "AR",
-      ownerName: project.ownerName || "Avni Rajput",
-      dueDate: project.dueDate || "Not set",
-      progress: Number.isFinite(project.progress) ? project.progress : 0,
-      color: project.color || "violet",
-    }));
-  } catch (error) {
-    console.error("Failed to load saved projects:", error);
+  if (!Array.isArray(parsedProjects)) {
+    console.error("Saved projects data is invalid. Using initial projects.");
     return initialProjects;
   }
+
+  // Fill in fields used by the UI so older saved project records remain compatible.
+  return parsedProjects.map((project) => ({
+    ...project,
+    status: project.status === "In Progress" ? "In progress" : (project.status || "In progress"),
+    description: project.description || "No description provided",
+    owner: project.owner || "AR",
+    ownerName: project.ownerName || "Avni Rajput",
+    dueDate: project.dueDate || "Not set",
+    progress: Number.isFinite(project.progress) ? project.progress : 0,
+    color: project.color || "violet",
+  }));
 }
 
 const initialTasks = [
@@ -143,38 +158,28 @@ function App() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [projects, setProjects] = useState(loadProjects);
   const [tasks, setTasks] = useState(() => {
-    try {
-      const savedTasks = localStorage.getItem("projectflow-tasks");
+    const parsedTasks = readStorage("projectflow-tasks", initialTasks);
 
-      if (!savedTasks) {
-        return initialTasks;
-      }
-
-      const parsedTasks = JSON.parse(savedTasks);
-
-      if (!Array.isArray(parsedTasks)) {
-        return initialTasks;
-      }
-
-      // Keep older saved task records compatible with the current UI.
-      return parsedTasks.map((task, index) => ({
-        ...task,
-        id: task.id ?? index + 1,
-        title: task.title || "Untitled task",
-        project: task.project || "Unassigned project",
-        priority: ["Low", "Medium", "High"].includes(task.priority)
-          ? task.priority
-          : "Medium",
-        status: ["To do", "In progress", "Completed"].includes(task.status)
-          ? task.status
-          : "To do",
-        dueDate: task.dueDate || "Not set",
-        assignee: task.assignee || "AR",
-      }));
-    } catch (error) {
-      console.error("Failed to load saved tasks:", error);
+    if (!Array.isArray(parsedTasks)) {
+      console.error("Saved tasks data is invalid. Using initial tasks.");
       return initialTasks;
     }
+
+    // Keep older saved task records compatible with the current UI.
+    return parsedTasks.map((task, index) => ({
+      ...task,
+      id: task.id ?? index + 1,
+      title: task.title || "Untitled task",
+      project: task.project || "Unassigned project",
+      priority: ["Low", "Medium", "High"].includes(task.priority)
+        ? task.priority
+        : "Medium",
+      status: ["To do", "In progress", "Completed"].includes(task.status)
+        ? task.status
+        : "To do",
+      dueDate: task.dueDate || "Not set",
+      assignee: task.assignee || "AR",
+    }));
   });
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("All projects");
@@ -183,13 +188,14 @@ function App() {
   const [dueDateFilter, setDueDateFilter] = useState("All due dates");
   const [sortTasksBy, setSortTasksBy] = useState("Due date");
   const [activity, setActivity] = useState(() => {
-    try {
-      const savedActivity = JSON.parse(localStorage.getItem("projectflow-activity") || "[]");
-      return Array.isArray(savedActivity) ? savedActivity : [];
-    } catch (error) {
-      console.error("Failed to load activity:", error);
+    const savedActivity = readStorage("projectflow-activity", []);
+
+    if (!Array.isArray(savedActivity)) {
+      console.error("Saved activity data is invalid. Using an empty activity list.");
       return [];
     }
+
+    return savedActivity;
   });
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -197,29 +203,17 @@ function App() {
 
   // Persist projects so newly created projects remain after a page refresh.
   useEffect(() => {
-    try {
-      localStorage.setItem("projectflow-projects", JSON.stringify(projects));
-    } catch (error) {
-      console.error("Failed to save projects:", error);
-    }
+    writeStorage("projectflow-projects", projects);
   }, [projects]);
 
   // Persist task updates in the browser.
   useEffect(() => {
-    try {
-      localStorage.setItem("projectflow-tasks", JSON.stringify(tasks));
-    } catch (error) {
-      console.error("Failed to save tasks:", error);
-    }
+    writeStorage("projectflow-tasks", tasks);
   }, [tasks]);
 
   // Persist the latest activity entries.
   useEffect(() => {
-    try {
-      localStorage.setItem("projectflow-activity", JSON.stringify(activity));
-    } catch (error) {
-      console.error("Failed to save activity:", error);
-    }
+    writeStorage("projectflow-activity", activity);
   }, [activity]);
 
   function recordActivity(message) {
