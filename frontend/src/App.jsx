@@ -267,40 +267,73 @@ function App() {
   }, [projects, search, projectFilter]);
 
   const filteredTasks = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const priorityRank = { High: 3, Medium: 2, Low: 1 };
+  const query = search.trim().toLowerCase();
+  const priorityRank = { High: 3, Medium: 2, Low: 1 };
 
-    return tasks
-      .filter((task) => {
-        const matchesSearch =
-          task.title.toLowerCase().includes(query) ||
-          task.project.toLowerCase().includes(query);
-        const matchesStatus =
-          taskFilter === "All tasks" || task.status === taskFilter;
-        const matchesPriority =
-          priorityFilter === "All priorities" || task.priority === priorityFilter;
-        const dueState = getTaskDueState(task);
-        const matchesDueDate =
-          dueDateFilter === "All due dates" ||
-          (dueDateFilter === "Overdue only" && dueState === "Overdue") ||
-          (dueDateFilter === "Due today" && dueState === "Due today") ||
-          (dueDateFilter === "Upcoming" && dueState === "Upcoming") ||
-          (dueDateFilter === "No due date" && dueState === "No due date");
+  return tasks
+    .filter((task) => {
+      const title = String(task.title ?? "").toLowerCase();
+      const project = String(task.project ?? "").toLowerCase();
 
-        return matchesSearch && matchesStatus && matchesPriority && matchesDueDate;
-      })
-      .sort((a, b) => {
-        if (sortTasksBy === "Priority") {
-          return priorityRank[b.priority] - priorityRank[a.priority];
-        }
-        if (sortTasksBy === "Title") {
-          return a.title.localeCompare(b.title);
-        }
-        const dateA = parseTaskDate(a.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-        const dateB = parseTaskDate(b.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-        return dateA - dateB;
-      });
-  }, [tasks, search, taskFilter, priorityFilter, dueDateFilter, sortTasksBy]);
+      const matchesSearch =
+        !query ||
+        title.includes(query) ||
+        project.includes(query);
+
+      const matchesStatus =
+        taskFilter === "All tasks" || task.status === taskFilter;
+
+      const matchesPriority =
+        priorityFilter === "All priorities" ||
+        task.priority === priorityFilter;
+
+      const dueState = getTaskDueState(task);
+
+      const matchesDueDate =
+        dueDateFilter === "All due dates" ||
+        (dueDateFilter === "Overdue only" && dueState === "Overdue") ||
+        (dueDateFilter === "Due today" && dueState === "Due today") ||
+        (dueDateFilter === "Upcoming" && dueState === "Upcoming") ||
+        (dueDateFilter === "No due date" && dueState === "No due date");
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesPriority &&
+        matchesDueDate
+      );
+    })
+    .sort((a, b) => {
+      if (sortTasksBy === "Priority") {
+        return (
+          (priorityRank[b.priority] ?? 0) -
+          (priorityRank[a.priority] ?? 0)
+        );
+      }
+
+      if (sortTasksBy === "Title") {
+        return String(a.title ?? "").localeCompare(
+          String(b.title ?? "")
+        );
+      }
+
+      const dateA =
+        parseTaskDate(a.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+
+      const dateB =
+        parseTaskDate(b.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+
+      return dateA - dateB;
+    });
+}, [
+  tasks,
+  search,
+  taskFilter,
+  priorityFilter,
+  dueDateFilter,
+  sortTasksBy,
+]);
+
 
   function addProject(event) {
     event.preventDefault();
