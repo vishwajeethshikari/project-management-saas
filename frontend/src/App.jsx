@@ -155,6 +155,16 @@ function getTaskDueState(task) {
 }
 
 function App() {
+  // Temporary demo authentication. Replace this adapter with backend API calls later.
+  const [authUser, setAuthUser] = useState(() => readStorage("projectflow-session", null));
+  const [authMode, setAuthMode] = useState("login");
+  const [authName, setAuthName] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
   const [activePage, setActivePage] = useState("Dashboard");
   const [projects, setProjects] = useState(loadProjects);
   const [tasks, setTasks] = useState(() => {
@@ -200,6 +210,111 @@ function App() {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
+
+  function handleAuthSubmit(event) {
+    event.preventDefault();
+    setAuthError("");
+    setAuthNotice("");
+    const email = authEmail.trim().toLowerCase();
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setAuthError("Enter a valid email address.");
+      return;
+    }
+    if (authPassword.length < 8) {
+      setAuthError("Password must contain at least 8 characters.");
+      return;
+    }
+
+    const accounts = readStorage("projectflow-demo-accounts", []);
+    if (!Array.isArray(accounts)) {
+      setAuthError("Demo account data is unavailable. Clear the demo account data and try again.");
+      return;
+    }
+
+    if (authMode === "register") {
+      if (!authName.trim()) {
+        setAuthError("Enter your full name.");
+        return;
+      }
+      if (authPassword !== authConfirmPassword) {
+        setAuthError("Passwords do not match.");
+        return;
+      }
+      if (accounts.some((account) => account.email === email)) {
+        setAuthError("An account with this email already exists. Please log in.");
+        return;
+      }
+      const account = { name: authName.trim(), email, password: authPassword };
+      if (!writeStorage("projectflow-demo-accounts", [...accounts, account])) {
+        setAuthError("Could not save the demo account. Check browser storage settings.");
+        return;
+      }
+      setAuthNotice("Registration successful. You can now log in.");
+      setAuthMode("login");
+      setAuthPassword("");
+      setAuthConfirmPassword("");
+      return;
+    }
+
+    const account = accounts.find((item) => item.email === email && item.password === authPassword);
+    if (!account) {
+      setAuthError("Incorrect email or password. Register first if you are a new user.");
+      return;
+    }
+    const session = { name: account.name, email: account.email };
+    if (!writeStorage("projectflow-session", session)) {
+      setAuthError("Could not save your demo session. Check browser storage settings.");
+      return;
+    }
+    setAuthUser(session);
+    setActivePage("Dashboard");
+  }
+
+  function handleLogout() {
+    window.localStorage.removeItem("projectflow-session");
+    setAuthUser(null);
+    setAuthMode("login");
+    setAuthPassword("");
+    setAuthError("");
+  }
+
+  if (!authUser) {
+    return (
+      <div className="pf-auth-shell">
+        <style>{`
+          .pf-auth-shell{min-height:100vh;display:grid;grid-template-columns:1fr 1fr;background:#f6f7fb;color:#172033;font-family:Inter,system-ui,sans-serif}
+          .pf-auth-brand{background:linear-gradient(145deg,#171a35,#343b70);color:#fff;padding:64px;display:flex;flex-direction:column;justify-content:space-between}
+          .pf-auth-logo{display:flex;align-items:center;gap:12px;font-size:23px;font-weight:750;letter-spacing:-.6px}.pf-auth-mark{width:38px;height:38px;border-radius:12px;background:#8175f5;display:grid;place-items:center;font-size:23px}
+          .pf-auth-pitch{max-width:490px}.pf-auth-pitch h1{font-size:clamp(34px,4vw,54px);line-height:1.08;letter-spacing:-2px;margin:0 0 18px}.pf-auth-pitch p{color:#c7cbe0;font-size:16px;line-height:1.7}.pf-auth-foot{font-size:12px;color:#aeb4d0}
+          .pf-auth-panel{display:grid;place-items:center;padding:36px 22px}.pf-auth-card{width:min(100%,420px);background:#fff;border:1px solid #e8eaf1;border-radius:20px;padding:38px;box-shadow:0 18px 55px #20284a12}.pf-auth-card h2{font-size:27px;margin:0 0 8px;letter-spacing:-.8px}.pf-auth-sub{color:#70798d;margin:0 0 28px;font-size:14px}.pf-auth-field{display:block;margin:16px 0 0;font-size:13px;font-weight:650;color:#30394d}.pf-auth-field input{display:block;width:100%;box-sizing:border-box;margin-top:8px;padding:13px 14px;border:1px solid #dfe3ec;border-radius:9px;font:inherit;font-weight:400;outline:none}.pf-auth-field input:focus{border-color:#7165e8;box-shadow:0 0 0 3px #7165e81c}.pf-auth-password{display:flex;gap:8px}.pf-auth-password input{flex:1;min-width:0}.pf-auth-toggle{margin-top:8px;border:0;background:#f0efff;color:#5147bd;border-radius:8px;padding:0 11px;font-weight:650;cursor:pointer}.pf-auth-submit{width:100%;margin-top:24px;padding:14px;border:0;border-radius:9px;background:#6558dc;color:#fff;font-weight:700;font-size:14px;cursor:pointer}.pf-auth-submit:hover{background:#5549c8}.pf-auth-switch{text-align:center;color:#737b8e;font-size:13px;margin:22px 0 0}.pf-auth-switch button{border:0;background:none;color:#5c50d3;font-weight:700;cursor:pointer}.pf-auth-error,.pf-auth-notice{font-size:13px;padding:11px 12px;border-radius:8px;margin:14px 0 0}.pf-auth-error{background:#fff0f0;color:#b42318}.pf-auth-notice{background:#edfaf2;color:#167443}.pf-auth-demo{margin-top:20px;padding:12px;background:#f6f7fb;border-radius:8px;color:#737b8e;font-size:11px;line-height:1.5}.pf-logout{border:1px solid #e1e4ed;background:#fff;color:#515b70;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:12px;font-weight:650}.pf-auth-top-actions{display:flex;align-items:center;gap:12px}@media(max-width:760px){.pf-auth-shell{grid-template-columns:1fr}.pf-auth-brand{display:none}.pf-auth-panel{min-height:100vh;padding:20px}.pf-auth-card{padding:28px 23px}}
+        `}</style>
+        <section className="pf-auth-brand">
+          <div className="pf-auth-logo"><span className="pf-auth-mark">p</span> projectflow</div>
+          <div className="pf-auth-pitch">
+            <h1>Bring your team's work into focus.</h1>
+            <p>Plan projects, organize tasks, and keep everyone moving in the same direction.</p>
+          </div>
+          <div className="pf-auth-foot">ProjectFlow · Organize work. Move forward together.</div>
+        </section>
+        <section className="pf-auth-panel">
+          <form className="pf-auth-card" onSubmit={handleAuthSubmit}>
+            <h2>{authMode === "login" ? "Welcome back" : "Create your account"}</h2>
+            <p className="pf-auth-sub">{authMode === "login" ? "Log in to continue to your workspace." : "Get started with your ProjectFlow workspace."}</p>
+            {authMode === "register" && <label className="pf-auth-field">Full name<input autoComplete="name" value={authName} onChange={(e) => setAuthName(e.target.value)} placeholder="Your name" /></label>}
+            <label className="pf-auth-field">Email address<input type="email" autoComplete="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="you@example.com" /></label>
+            <label className="pf-auth-field">Password<div className="pf-auth-password"><input type={showPassword ? "text" : "password"} autoComplete={authMode === "login" ? "current-password" : "new-password"} value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="At least 8 characters" /><button className="pf-auth-toggle" type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Hide" : "Show"}</button></div></label>
+            {authMode === "register" && <label className="pf-auth-field">Confirm password<input type={showPassword ? "text" : "password"} autoComplete="new-password" value={authConfirmPassword} onChange={(e) => setAuthConfirmPassword(e.target.value)} placeholder="Re-enter password" /></label>}
+            {authError && <div className="pf-auth-error" role="alert">{authError}</div>}
+            {authNotice && <div className="pf-auth-notice" role="status">{authNotice}</div>}
+            <button className="pf-auth-submit" type="submit">{authMode === "login" ? "Log in" : "Create account"}</button>
+            <p className="pf-auth-switch">{authMode === "login" ? "Don't have an account?" : "Already have an account?"} <button type="button" onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); setAuthNotice(""); }}>{authMode === "login" ? "Sign up" : "Log in"}</button></p>
+            <div className="pf-auth-demo">Development mode: accounts are stored locally in this browser for UI testing. Do not use a real password. This is not production authentication.</div>
+          </form>
+        </section>
+      </div>
+    );
+  }
 
   // Persist projects so newly created projects remain after a page refresh.
   useEffect(() => {
@@ -1157,10 +1272,10 @@ function App() {
           </div>
 
           <div className="profile">
-            <div className="profile-avatar">AR</div>
+            <div className="profile-avatar">{(authUser.name || "U").split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</div>
             <div className="profile-info">
-              <strong>Avni Rajput</strong>
-              <small>Frontend Developer</small>
+              <strong>{authUser.name}</strong>
+              <small>{authUser.email}</small>
             </div>
           </div>
         </div>
@@ -1173,9 +1288,10 @@ function App() {
             <span className="breadcrumb-separator">/</span>
             <strong>{activePage}</strong>
           </div>
-          <div className="topbar-actions">
+          <div className="topbar-actions pf-auth-top-actions">
             <span className="demo-label">DEMO WORKSPACE</span>
-            <div className="topbar-avatar">AR</div>
+            <div className="topbar-avatar">{(authUser.name || "U").split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</div>
+            <button type="button" className="pf-logout" onClick={handleLogout}>Log out</button>
           </div>
         </header>
 
