@@ -1,1986 +1,810 @@
 
-import React, { useState, useMemo } from 'react';
-import './App.css';
-
-// ==========================================
-// RELATIONAL INITIAL SEED DATA (PDF PAGE 6 COMPLIANT)
-// ==========================================
-const INITIAL_USERS = [
-  { id: 'usr-1', name: 'Elena Rostova', email: 'elena@flowboard.io', role: 'owner', avatar: '👩‍💻' },
-  { id: 'usr-2', name: 'Sarah Jenkins', email: 'sarah@flowboard.io', role: 'manager', avatar: '👩‍💼' },
-  { id: 'usr-3', name: 'Alex Rivera', email: 'alex@flowboard.io', role: 'employee', avatar: '👨‍💻' },
-  { id: 'usr-4', name: 'Dave Kincaid', email: 'dave@flowboard.io', role: 'employee', avatar: '⚙️' },
-];
-
-const INITIAL_PROJECTS = [
-  { 
-    id: 'proj-alpha', 
-    name: 'Project Alpha (Smart Recruitment)', 
-    workspace: 'Global HR Workspace',
-    techStack: 'React, Node.js, PostgreSQL', 
-    description: 'Enterprise ATS system with automated resume ingestion pipelines and multi-tenant isolation.', 
-    targetDeadline: '2025-03-28',
-    managerId: 'usr-2' 
-  },
-  { 
-    id: 'proj-beta', 
-    name: 'Project Beta (Metrics & Analytics)', 
-    workspace: 'Core Platform Team',
-    techStack: 'Python, FastAPI, TimescaleDB', 
-    description: 'High-throughput analytics engines calculating live metrics, workspace progress, and pipeline latency.', 
-    targetDeadline: '2025-04-15',
-    managerId: 'usr-1' 
-  }
-];
-
-const INITIAL_TASKS = [
-  { id: 'task-1', projectId: 'proj-alpha', title: 'Design DB Schemas & Multitenancy', assigneeId: 'usr-1', status: 'Done', priority: 'High', dueDate: '2025-03-01', completedDate: '2025-03-01' },
-  { id: 'task-2', projectId: 'proj-alpha', title: 'Implement Resume Upload Validation', assigneeId: 'usr-3', status: 'In Progress', priority: 'Medium', dueDate: '2025-03-06' },
-  { id: 'task-3', projectId: 'proj-alpha', title: 'Configure SMTP Notification Routes', assigneeId: 'usr-2', status: 'To Do', priority: 'Low', dueDate: '2025-02-28' }, // Overdue
-  { id: 'task-4', projectId: 'proj-beta', title: 'Deploy TimescaleDB Tuning Pipeline', assigneeId: 'usr-4', status: 'In Progress', priority: 'High', dueDate: '2025-03-12' },
-  { id: 'task-5', projectId: 'proj-beta', title: 'Verify Real-time Metric Sync Hook', assigneeId: 'usr-3', status: 'Done', priority: 'Medium', dueDate: '2025-03-02', completedDate: '2025-03-02' },
-];
-
-const INITIAL_WORK_PLANS = [
-  { id: 'plan-1', userId: 'usr-3', focusText: 'ATS Database Tuning Session', date: '2025-03-05', type: 'tuning' },
-  { id: 'plan-2', userId: 'usr-4', focusText: 'API Gateway Security Audit', date: '2025-03-12', type: 'focus' },
-  { id: 'plan-3', userId: 'usr-2', focusText: 'Annual Leave / Out of Office', date: '2025-03-15', type: 'leave' },
-  { id: 'plan-4', userId: 'usr-3', focusText: 'Duplicate Sprint Refactoring Block', date: '2025-03-05', type: 'focus' }, // Creates overload collision warning
-];
-
-export default function App() {
-  // Navigation & Core States
-  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, projects, project-detail, kanban, my-todos, calendar
-  const [selectedProjectId, setSelectedProjectId] = useState('proj-alpha');
-  const [systemDate] = useState('2025-03-02'); // Fixed target evaluation date as baseline
-  
-  // Dynamic Datasets (API Mock-Swappable)
-  const [users, setUsers] = useState(INITIAL_USERS);
-  const [projects, setProjects] = useState(INITIAL_PROJECTS);
-  const [tasks, setTasks] = useState(INITIAL_TASKS);
-  const [workPlans, setWorkPlans] = useState(INITIAL_WORK_PLANS);
-
-  // Filter States for 'My To-Dos'
-  const [filterAssignee, setFilterAssignee] = useState('all');
-  const [filterProject, setFilterProject] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
-
-  // Modal Control States
-  const [showProvisionModal, setShowProvisionModal] = useState(false);
-  const [showPlanModal, setShowPlanModal] = useState(false);
-  const [showTaskModal, setShowTaskModal] = useState(false);
-  const [editingTask, setEditingTask] = useState(null);
-
-  // Form Fields: Project Provisioning
-  const [newProjName, setNewProjName] = useState('');
-  const [newProjWorkspace, setNewProjWorkspace] = useState('');
-  const [newProjTech, setNewProjTech] = useState('');
-  const [newProjDesc, setNewProjDesc] = useState('');
-  const [newProjDeadline, setNewProjDeadline] = useState('');
-  const [newProjManager, setNewProjManager] = useState(INITIAL_USERS[0].id);
-
-  // Form Fields: Focus Planner
-  const [planUser, setPlanUser] = useState(INITIAL_USERS[0].id);
-  const [planFocusText, setPlanFocusText] = useState('');
-  const [planDate, setPlanDate] = useState('2025-03-05');
-  const [planType, setPlanType] = useState('focus');
-
-  // Form Fields: Task Creator/Editor
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskProject, setTaskProject] = useState(INITIAL_PROJECTS[0].id);
-  const [taskAssignee, setTaskAssignee] = useState(INITIAL_USERS[0].id);
-  const [taskStatus, setTaskStatus] = useState('To Do');
-  const [taskPriority, setTaskPriority] = useState('Medium');
-  const [taskDueDate, setTaskDueDate] = useState('2025-03-10');
-
-  // Interactive Calendar Selection
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState('2025-03-05');
-
-  // ==========================================
-  // REAL-TIME METRICS CALCULATION (PDF COMPLIANT)
-  // ==========================================
-  const computedMetrics = useMemo(() => {
-    return projects.map(proj => {
-      const projTasks = tasks.filter(t => t.projectId === proj.id);
-      const total = projTasks.length;
-      const completed = projTasks.filter(t => t.status === 'Done').length;
-      
-      // Task Completion Rate
-      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-      
-      // On-Time Completion Rate
-      const completedWithDueDates = projTasks.filter(t => t.status === 'Done' && t.dueDate);
-      const onTimeCompleted = completedWithDueDates.filter(t => {
-        if (!t.completedDate) return false;
-        return new Date(t.completedDate) <= new Date(t.dueDate);
-      }).length;
-      const onTimeRate = completedWithDueDates.length > 0 
-        ? Math.round((onTimeCompleted / completedWithDueDates.length) * 100) 
-        : 100; // Defaults to 100% on-time if all completed were on-time
-
-      // Overdue Counts (Status !== Done && Due Date < System Date)
-      const overdueCount = projTasks.filter(t => {
-        return t.status !== 'Done' && t.dueDate && new Date(t.dueDate) < new Date(systemDate);
-      }).length;
-
-      // Assignment Coverage Rate (Tasks with assigned owner / total tasks)
-      const assignedCount = projTasks.filter(t => t.assigneeId).length;
-      const coverageRate = total > 0 ? Math.round((assignedCount / total) * 100) : 0;
-
-      return {
-        projectId: proj.id,
-        name: proj.name,
-        completionRate,
-        onTimeRate,
-        overdueCount,
-        coverageRate,
-        totalTasks: total,
-        completedTasks: completed
-      };
-    });
-  }, [projects, tasks, systemDate]);
-
-  // Overall Global Aggregates
-  const globalMetrics = useMemo(() => {
-    const total = tasks.length;
-    const completed = tasks.filter(t => t.status === 'Done').length;
-    const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-    const overdue = tasks.filter(t => t.status !== 'Done' && t.dueDate && new Date(t.dueDate) < new Date(systemDate)).length;
-    const assigned = tasks.filter(t => t.assigneeId).length;
-    const coverage = total > 0 ? Math.round((assigned / total) * 100) : 0;
-
-    return {
-      completionRate,
-      overdue,
-      coverage,
-      totalTasks: total,
-      completedTasks: completed
-    };
-  }, [tasks, systemDate]);
-
-  // ==========================================
-  // HANDLERS (DYNAMIC & PROTECTED)
-  // ==========================================
-  const handleProvisionProject = (e) => {
-    e.preventDefault();
-    if (!newProjName.trim()) return;
-
-    const newId = `proj-${Date.now()}`;
-    const newProjectNode = {
-      id: newId,
-      name: newProjName,
-      workspace: newProjWorkspace || 'Default Organization',
-      techStack: newProjTech || 'N/A',
-      description: newProjDesc || 'No description provided.',
-      targetDeadline: newProjDeadline || '2025-12-31',
-      managerId: newProjManager
-    };
-
-    setProjects([...projects, newProjectNode]);
-    
-    // Auto-select the newly created project node
-    setSelectedProjectId(newId);
-    setShowProvisionModal(false);
-
-    // Reset Form
-    setNewProjName('');
-    setNewProjWorkspace('');
-    setNewProjTech('');
-    setNewProjDesc('');
-  };
-
-  const handleCreatePlan = (e) => {
-    e.preventDefault();
-    if (!planFocusText.trim()) return;
-
-    const newPlan = {
-      id: `plan-${Date.now()}`,
-      userId: planUser,
-      focusText: planFocusText,
-      date: planDate,
-      type: planType
-    };
-
-    setWorkPlans([...workPlans, newPlan]);
-    setShowPlanModal(false);
-    setPlanFocusText('');
-  };
-
-  const handleOpenTaskDeployer = (taskObj = null) => {
-    if (taskObj) {
-      setEditingTask(taskObj);
-      setTaskTitle(taskObj.title);
-      setTaskProject(taskObj.projectId);
-      setTaskAssignee(taskObj.assigneeId);
-      setTaskStatus(taskObj.status);
-      setTaskPriority(taskObj.priority);
-      setTaskDueDate(taskObj.dueDate || '');
-    } else {
-      setEditingTask(null);
-      setTaskTitle('');
-      setTaskProject(selectedProjectId || projects[0]?.id || '');
-      setTaskAssignee(users[0]?.id || '');
-      setTaskStatus('To Do');
-      setTaskPriority('Medium');
-      setTaskDueDate('2025-03-10');
-    }
-    setShowTaskModal(true);
-  };
-
-  const handleSaveTask = (e) => {
-    e.preventDefault();
-    if (!taskTitle.trim()) return;
-
-    if (editingTask) {
-      // Edit Mode
-      setTasks(tasks.map(t => {
-        if (t.id === editingTask.id) {
-          const wasDone = t.status === 'Done';
-          const isNowDone = taskStatus === 'Done';
-          return {
-            ...t,
-            title: taskTitle,
-            projectId: taskProject,
-            assigneeId: taskAssignee,
-            status: taskStatus,
-            priority: taskPriority,
-            dueDate: taskDueDate,
-            completedDate: isNowDone ? (wasDone ? t.completedDate : systemDate) : undefined
-          };
-        }
-        return t;
-      }));
-    } else {
-      // Create Mode
-      const newTask = {
-        id: `task-${Date.now()}`,
-        projectId: taskProject,
-        title: taskTitle,
-        assigneeId: taskAssignee,
-        status: taskStatus,
-        priority: taskPriority,
-        dueDate: taskDueDate,
-        completedDate: taskStatus === 'Done' ? systemDate : undefined
-      };
-      setTasks([...tasks, newTask]);
-    }
-
-    setShowTaskModal(false);
-    setEditingTask(null);
-  };
-
-  const handleDeleteTask = (taskId) => {
-    if (window.confirm("Are you sure you want to delete this task?")) {
-      setTasks(tasks.filter(t => t.id !== taskId));
-      setShowTaskModal(false);
-      setEditingTask(null);
-    }
-  };
-
-  // ==========================================
-  // HELPERS FOR VIEWS
-  // ==========================================
-  const activeProject = projects.find(p => p.id === selectedProjectId) || projects[0];
-  const activeProjectMetrics = computedMetrics.find(m => m.projectId === (activeProject?.id || ''));
-
-  // Get User Name and Avatar safe utilities
-  const getUserProfile = (userId) => {
-    const u = users.find(x => x.id === userId);
-    return u ? { name: u.name, avatar: u.avatar, role: u.role } : { name: 'Unassigned', avatar: '👤', role: 'employee' };
-  };
-
-  // Calendar Day Generation (March 2025)
-  const calendarDays = useMemo(() => {
-    const days = [];
-    for (let i = 1; i <= 31; i++) {
-      const dayStr = `2025-03-${i < 10 ? '0' + i : i}`;
-      // Find events and check conflicts
-      const dayPlans = workPlans.filter(p => p.date === dayStr);
-      
-      // Determine conflicts: check if any individual user has > 1 plan allocated on this specific day
-      const userAllocations = {};
-      dayPlans.forEach(p => {
-        userAllocations[p.userId] = (userAllocations[p.userId] || 0) + 1;
-      });
-      const hasConflict = Object.values(userAllocations).some(count => count > 1);
-
-      days.push({
-        dayNumber: i,
-        dateString: dayStr,
-        plans: dayPlans,
-        hasConflict
-      });
-    }
-    return days;
-  }, [workPlans]);
-
-  // Unified To-Do Filter Calculation
-  const filteredTasks = useMemo(() => {
-    return tasks.filter(t => {
-      const matchAssignee = filterAssignee === 'all' || t.assigneeId === filterAssignee;
-      const matchProject = filterProject === 'all' || t.projectId === filterProject;
-      const matchStatus = filterStatus === 'all' || t.status === filterStatus;
-      return matchAssignee && matchProject && matchStatus;
-    });
-  }, [tasks, filterAssignee, filterProject, filterStatus]);
-
-  return (
-    <div className="app-container">
-      {/* GLOWING HEADER */}
-      <header className="main-header">
-        <div className="header-brand">
-          <div className="neon-orb"></div>
-          <h1>FlowBoard <span className="sub-tag">Enterprise SaaS Core</span></h1>
-        </div>
-        <nav className="header-nav">
-          <button className={`nav-btn ${currentView === 'dashboard' ? 'active' : ''}`} onClick={() => setCurrentView('dashboard')}>Dashboard</button>
-          <button className={`nav-btn ${currentView === 'projects' ? 'active' : ''}`} onClick={() => setCurrentView('projects')}>Projects Mapping</button>
-          <button className={`nav-btn ${currentView === 'kanban' ? 'active' : ''}`} onClick={() => setCurrentView('kanban')}>Kanban Pipelines</button>
-          <button className={`nav-btn ${currentView === 'my-todos' ? 'active' : ''}`} onClick={() => setCurrentView('my-todos')}>Global To-Dos</button>
-          <button className={`nav-btn ${currentView === 'calendar' ? 'active' : ''}`} onClick={() => setCurrentView('calendar')}>Conflict Scheduler</button>
-        </nav>
-        <div className="header-actions">
-          <button className="terminal-trigger" onClick={() => setShowProvisionModal(true)}>
-            ⚡ Provision Node
-          </button>
-        </div>
-      </header>
-
-      {/* CORE FRAMEWORK BODY */}
-      <main className="view-container">
-
-        {/* ==========================================
-            1. GLOBAL DASHBOARD VIEW
-            ========================================== */}
-        {currentView === 'dashboard' && (
-          <div className="dashboard-grid fade-in">
-            {/* Top Workspace Aggregates */}
-            <div className="full-width-card welcome-hero">
-              <div className="hero-text">
-                <h2>Workspace Pipeline Orchestrator</h2>
-                <p>Global Evaluation Target Baseline: <strong>{systemDate}</strong></p>
-              </div>
-              <div className="quick-metrics-row">
-                <div className="stat-node">
-                  <span className="stat-label">Total Core Nodes</span>
-                  <span className="stat-val">{projects.length}</span>
-                </div>
-                <div className="stat-node">
-                  <span className="stat-label">Global Task Completion</span>
-                  <span className="stat-val">{globalMetrics.completionRate}%</span>
-                </div>
-                <div className="stat-node text-alert">
-                  <span className="stat-label">Total Overdue Items</span>
-                  <span className="stat-val">{globalMetrics.overdue}</span>
-                </div>
-                <div className="stat-node">
-                  <span className="stat-label">Assignment Coverage</span>
-                  <span className="stat-val">{globalMetrics.coverage}%</span>
-                </div>
-              </div>
-            </div>
-
-            {/* List of Active Project Nodes with Metrics */}
-            <div className="panel-col card">
-              <div className="panel-header">
-                <h3>Active Project Nodes</h3>
-                <span className="badge">Calculations Active</span>
-              </div>
-              <div className="project-nodes-list">
-                {projects.map(proj => {
-                  const m = computedMetrics.find(metric => metric.projectId === proj.id);
-                  const isSelected = selectedProjectId === proj.id;
-                  return (
-                    <div 
-                      key={proj.id} 
-                      className={`project-node-item ${isSelected ? 'selected' : ''}`}
-                      onClick={() => {
-                        setSelectedProjectId(proj.id);
-                        setCurrentView('project-detail');
-                      }}
-                    >
-                      <div className="node-info">
-                        <h4>{proj.name}</h4>
-                        <p className="tech-stack-tag">{proj.techStack}</p>
-                      </div>
-                      <div className="node-stats">
-                        <div className="stat-bar-container">
-                          <div className="stat-bar-fill" style={{ width: `${m?.completionRate || 0}%` }}></div>
-                        </div>
-                        <span className="stat-percent">{m?.completionRate || 0}% Done</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Live Analytics Dashboard Summary */}
-            <div className="panel-col card">
-              <div className="panel-header">
-                <h3>System Integrity Metrics (SaaS Targets)</h3>
-              </div>
-              <div className="analytics-details-list">
-                {computedMetrics.map(m => (
-                  <div key={m.projectId} className="integrity-card">
-                    <h5>{m.name}</h5>
-                    <div className="metric-row">
-                      <span>On-Time Completion Rate:</span>
-                      <strong className={m.onTimeRate < 70 ? 'warn' : 'good'}>{m.onTimeRate}%</strong>
-                    </div>
-                    <div className="metric-row">
-                      <span>Assigned Resource Coverage:</span>
-                      <strong>{m.coverageRate}%</strong>
-                    </div>
-                    <div className="metric-row">
-                      <span>Critical Overdue Task Alerts:</span>
-                      <strong className={m.overdueCount > 0 ? 'critical' : 'good'}>{m.overdueCount} Critical</strong>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ==========================================
-            2. PROJECTS MAPPING LIST
-            ========================================== */}
-        {currentView === 'projects' && (
-          <div className="projects-view fade-in">
-            <div className="section-header">
-              <h2>All Initialized Project Nodes</h2>
-              <button className="primary-btn" onClick={() => setShowProvisionModal(true)}>+ Provision New Node</button>
-            </div>
-            <div className="projects-card-grid">
-              {projects.map(proj => {
-                const m = computedMetrics.find(metric => metric.projectId === proj.id);
-                const manager = getUserProfile(proj.managerId);
-                return (
-                  <div key={proj.id} className="project-profile-card card">
-                    <div className="profile-header">
-                      <div>
-                        <h3>{proj.name}</h3>
-                        <span className="workspace-tag">{proj.workspace}</span>
-                      </div>
-                      <span className="tech-badge">{proj.techStack}</span>
-                    </div>
-                    <p className="project-desc">{proj.description}</p>
-                    <div className="profile-manager">
-                      <span>Responsible Manager:</span>
-                      <strong>{manager.avatar} {manager.name} ({manager.role})</strong>
-                    </div>
-                    <div className="profile-metrics">
-                      <div className="metric-box">
-                        <span className="box-val">{m?.completionRate || 0}%</span>
-                        <span className="box-lbl">Completion</span>
-                      </div>
-                      <div className="metric-box">
-                        <span className="box-val">{m?.onTimeRate || 0}%</span>
-                        <span className="box-lbl">On-Time</span>
-                      </div>
-                      <div className="metric-box">
-                        <span className="box-val text-alert">{m?.overdueCount || 0}</span>
-                        <span className="box-lbl">Overdue</span>
-                      </div>
-                    </div>
-                    <div className="profile-footer">
-                      <span>Target: {proj.targetDeadline}</span>
-                      <button className="action-link" onClick={() => {
-                        setSelectedProjectId(proj.id);
-                        setCurrentView('project-detail');
-                      }}>Enter Diagnostics →</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ==========================================
-            3. PROJECT DETAIL & DIAGNOSTICS VIEW
-            ========================================== */}
-        {currentView === 'project-detail' && activeProject && (
-          <div className="project-details-view fade-in">
-            <div className="details-header-row">
-              <button className="back-link" onClick={() => setCurrentView('dashboard')}>← Back to Main Dashboard</button>
-              <div className="header-meta">
-                <h2>{activeProject.name} <span className="accent-text">({activeProject.workspace})</span></h2>
-                <span className="tech-badge">{activeProject.techStack}</span>
-              </div>
-            </div>
-
-            <div className="details-layout-grid">
-              <div className="sidebar-details card">
-                <h4>Node Specifications</h4>
-                <div className="detail-spec">
-                  <label>Target Deadline</label>
-                  <p>{activeProject.targetDeadline}</p>
-                </div>
-                <div className="detail-spec">
-                  <label>Responsible Node Manager</label>
-                  <p>{getUserProfile(activeProject.managerId).avatar} {getUserProfile(activeProject.managerId).name}</p>
-                </div>
-                <div className="detail-spec">
-                  <label>Core Description</label>
-                  <p className="italic">{activeProject.description}</p>
-                </div>
-
-                <div className="diagnostics-panel-alert">
-                  <h4>Metric Evaluations</h4>
-                  <div className="diag-row">
-                    <span>Task Completion Rate:</span>
-                    <strong>{activeProjectMetrics?.completionRate}%</strong>
-                  </div>
-                  <div className="diag-row">
-                    <span>On-Time Delivery Target:</span>
-                    <strong>{activeProjectMetrics?.onTimeRate}%</strong>
-                  </div>
-                  <div className="diag-row">
-                    <span>Active Team Allocation:</span>
-                    <strong>{activeProjectMetrics?.coverageRate}% Covered</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="main-tasks-panel card">
-                <div className="panel-header-action">
-                  <h3>Active Pipeline Tickets</h3>
-                  <button className="primary-btn" onClick={() => handleOpenTaskDeployer()}>+ Deploy Task Card</button>
-                </div>
-                <div className="tasks-interactive-list">
-                  {tasks.filter(t => t.projectId === activeProject.id).map(task => {
-                    const assignee = getUserProfile(task.assigneeId);
-                    const isOverdue = task.status !== 'Done' && task.dueDate && new Date(task.dueDate) < new Date(systemDate);
-                    return (
-                      <div key={task.id} className={`task-card-item ${isOverdue ? 'overdue-border' : ''}`}>
-                        <div className="card-top">
-                          <span className={`priority-badge ${task.priority.toLowerCase()}`}>{task.priority}</span>
-                          <span className={`status-badge ${task.status.replace(/\s+/g, '-').toLowerCase()}`}>{task.status}</span>
-                        </div>
-                        <h4>{task.title}</h4>
-                        <div className="card-bottom">
-                          <span className="assignee-info">{assignee.avatar} {assignee.name}</span>
-                          <div className="due-info">
-                            <span className="due-date">Due: {task.dueDate || 'No Limit'}</span>
-                            {isOverdue && <span className="overdue-tag">OVERDUE</span>}
-                          </div>
-                        </div>
-                        <div className="card-edit-overlay">
-                          <button className="edit-overlay-btn" onClick={() => handleOpenTaskDeployer(task)}>Edit Card</button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {tasks.filter(t => t.projectId === activeProject.id).length === 0 && (
-                    <div className="empty-state">
-                      <p>No active tasks in this project pipeline node.</p>
-                      <button className="action-link" onClick={() => handleOpenTaskDeployer()}>Create First Task Now</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ==========================================
-            4. KANBAN PIPELINES VIEW
-            ========================================== */}
-        {currentView === 'kanban' && (
-          <div className="kanban-view fade-in">
-            <div className="section-header-filters">
-              <div>
-                <h2>Workspace Pipeline Kanban</h2>
-                <p>Orchestrate and update tasks interactively. Select active project node context:</p>
-              </div>
-              <div className="context-selector">
-                <label>Project Context:</label>
-                <select value={selectedProjectId} onChange={(e) => setSelectedProjectId(e.target.value)}>
-                  {projects.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                <button className="primary-btn" onClick={() => handleOpenTaskDeployer()}>+ Add Task Card</button>
-              </div>
-            </div>
-
-            <div className="kanban-board">
-              {['To Do', 'In Progress', 'Review', 'Done'].map(statusCol => {
-                const columnTasks = tasks.filter(t => t.projectId === selectedProjectId && t.status === statusCol);
-                return (
-                  <div key={statusCol} className="kanban-column">
-                    <div className="column-header">
-                      <h3>{statusCol}</h3>
-                      <span className="col-count">{columnTasks.length}</span>
-                    </div>
-                    <div className="column-body">
-                      {columnTasks.map(task => {
-                        const assignee = getUserProfile(task.assigneeId);
-                        const isOverdue = task.status !== 'Done' && task.dueDate && new Date(task.dueDate) < new Date(systemDate);
-                        return (
-                          <div key={task.id} className={`kanban-card ${isOverdue ? 'overdue' : ''}`} onClick={() => handleOpenTaskDeployer(task)}>
-                            <div className="kanban-card-header">
-                              <span className={`priority-tag ${task.priority.toLowerCase()}`}>{task.priority}</span>
-                              {isOverdue && <span className="warning-label-inline">Overdue</span>}
-                            </div>
-                            <p className="kanban-title">{task.title}</p>
-                            <div className="kanban-card-footer">
-                              <span className="kanban-assignee" title={assignee.name}>{assignee.avatar} {assignee.name.split(' ')[0]}</span>
-                              <span className="kanban-due">{task.dueDate}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {columnTasks.length === 0 && (
-                        <div className="column-empty">Drop / Add Tasks Here</div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ==========================================
-            5. GLOBAL CROSS-PROJECT TO-DO LIST VIEW
-            ========================================== */}
-        {currentView === 'my-todos' && (
-          <div className="my-todos-view fade-in">
-            <div className="section-header">
-              <h2>Unified Workspace Task Ledger</h2>
-              <button className="primary-btn" onClick={() => handleOpenTaskDeployer()}>+ Create Task</button>
-            </div>
-
-            {/* Filter Hub Panel */}
-            <div className="filters-hub card">
-              <div className="filter-group">
-                <label>Assignee Filter:</label>
-                <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)}>
-                  <option value="all">All Workspace Personnel</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.avatar} {u.name} ({u.role})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="filter-group">
-                <label>Project Map Filter:</label>
-                <select value={filterProject} onChange={(e) => setFilterProject(e.target.value)}>
-                  <option value="all">All Active Project Nodes</option>
-                  {projects.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="filter-group">
-                <label>Pipeline Status:</label>
-                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                  <option value="all">All Status Pillars</option>
-                  <option value="To Do">To Do</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Review">Review</option>
-                  <option value="Done">Done</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Structured Table for To-Dos */}
-            <div className="table-responsive card">
-              <table className="ledger-table">
-                <thead>
-                  <tr>
-                    <th>Task Card Details</th>
-                    <th>Associated Project Map</th>
-                    <th>Assignee Specialist</th>
-                    <th>Priority</th>
-                    <th>Due Target</th>
-                    <th>Calculated Status</th>
-                    <th>Operations</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTasks.map(task => {
-                    const assignee = getUserProfile(task.assigneeId);
-                    const proj = projects.find(p => p.id === task.projectId);
-                    const isOverdue = task.status !== 'Done' && task.dueDate && new Date(task.dueDate) < new Date(systemDate);
-                    return (
-                      <tr key={task.id} className={isOverdue ? 'row-overdue-alert' : ''}>
-                        <td>
-                          <div className="task-ledger-title">
-                            <strong>{task.title}</strong>
-                            {isOverdue && <span className="overdue-badge">Overdue Target</span>}
-                          </div>
-                        </td>
-                        <td>{proj ? proj.name : 'Unknown Node'}</td>
-                        <td>{assignee.avatar} {assignee.name}</td>
-                        <td>
-                          <span className={`priority-badge ${task.priority.toLowerCase()}`}>{task.priority}</span>
-                        </td>
-                        <td>{task.dueDate || 'Undefined'}</td>
-                        <td>
-                          <span className={`status-pill ${task.status.replace(/\s+/g, '-').toLowerCase()}`}>{task.status}</span>
-                        </td>
-                        <td>
-                          <button className="table-action-btn" onClick={() => handleOpenTaskDeployer(task)}>Edit</button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {filteredTasks.length === 0 && (
-                    <tr>
-                      <td colSpan="7" className="empty-cell">No tasks match selected workspace query filters.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ==========================================
-            6. CONFLICT SCHEDULER & MONTH PLANNER
-            ========================================== */}
-        {currentView === 'calendar' && (
-          <div className="calendar-view fade-in">
-            <div className="section-header-filters">
-              <div>
-                <h2>Workspace Resource & Conflict Matrix</h2>
-                <p>Plan schedules, track leaf slots, or database tuning. Active month evaluation: <strong>March 2025</strong></p>
-              </div>
-              <button className="primary-btn" onClick={() => setShowPlanModal(true)}>+ Register New Daily Focus</button>
-            </div>
-
-            <div className="calendar-layout-wrapper">
-              {/* Left Calendar Grid */}
-              <div className="calendar-grid-card card">
-                <div className="calendar-days-header">
-                  <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
-                </div>
-                <div className="calendar-days-grid">
-                  {/* Padding to start Wednesday March 1st */}
-                  <div className="calendar-pad-day"></div>
-                  <div className="calendar-pad-day"></div>
-
-                  {calendarDays.map(day => {
-                    const isSelected = selectedCalendarDate === day.dateString;
-                    return (
-                      <div 
-                        key={day.dayNumber} 
-                        className={`calendar-day-cell ${isSelected ? 'selected' : ''} ${day.hasConflict ? 'collision-danger' : ''}`}
-                        onClick={() => setSelectedCalendarDate(day.dateString)}
-                      >
-                        <div className="day-number-header">
-                          <span>{day.dayNumber}</span>
-                          {day.hasConflict && <span className="collision-warning-orb" title="Workload Collision Alert!">⚠️</span>}
-                        </div>
-                        <div className="day-plans-preview">
-                          {day.plans.slice(0, 2).map(p => {
-                            const user = getUserProfile(p.userId);
-                            return (
-                              <div key={p.id} className={`plan-chip ${p.type}`}>
-                                {user.avatar} {p.focusText.slice(0, 10)}...
-                              </div>
-                            );
-                          })}
-                          {day.plans.length > 2 && <span className="more-plans-tag">+{day.plans.length - 2} more</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Right Diagnostics Side Panel */}
-              <div className="calendar-diagnostics card">
-                <h3>Milestone Diagnostics</h3>
-                <p className="sub-label">Evaluation Date: <strong>{selectedCalendarDate}</strong></p>
-                
-                <div className="diagnostics-event-list">
-                  <h4>Scheduled Workspace Activities</h4>
-                  {workPlans.filter(p => p.date === selectedCalendarDate).map(p => {
-                    const user = getUserProfile(p.userId);
-                    return (
-                      <div key={p.id} className={`diagnostics-event-item border-${p.type}`}>
-                        <div className="item-header">
-                          <strong>{user.avatar} {user.name} ({user.role})</strong>
-                          <span className={`plan-type-pill ${p.type}`}>{p.type}</span>
-                        </div>
-                        <p className="plan-text">"{p.focusText}"</p>
-                      </div>
-                    );
-                  })}
-                  {workPlans.filter(p => p.date === selectedCalendarDate).length === 0 && (
-                    <div className="empty-diagnostics">
-                      <p>No specialist allocations registered for this calendar date.</p>
-                      <button className="action-link" onClick={() => {
-                        setPlanDate(selectedCalendarDate);
-                        setShowPlanModal(true);
-                      }}>Allocate Day Focus Now</button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Overload Analyzer */}
-                <div className="overload-analyser-box">
-                  <h4>Collision Matrix Assessment</h4>
-                  {(() => {
-                    const dayPlans = workPlans.filter(p => p.date === selectedCalendarDate);
-                    const counts = {};
-                    dayPlans.forEach(p => counts[p.userId] = (counts[p.userId] || 0) + 1);
-                    const overloads = Object.entries(counts).filter(([_, count]) => count > 1);
-                    
-                    if (overloads.length > 0) {
-                      return (
-                        <div className="analyzer-alert positive">
-                          <span className="danger-text">⚠️ CRITICAL OVERLOAD ENCOUNTERED:</span>
-                          <ul>
-                            {overloads.map(([uid, count]) => {
-                              const u = getUserProfile(uid);
-                              return (
-                                <li key={uid}>
-                                  <strong>{u.name}</strong> has been assigned {count} concurrent priority items for this calendar slot.
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div className="analyzer-alert negative">
-                        <span className="safe-text">✅ Workspace calendar collision matrix looks stable.</span>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-      </main>
-
-      {/* ==========================================
-          MODAL: PROJECT PROVISIONING TERMINAL
-          ========================================== */}
-      {showProvisionModal && (
-        <div className="modal-backdrop">
-          <div className="modal-panel glass-modal">
-            <div className="modal-header">
-              <h3>⚡ Project Provisioning Terminal</h3>
-              <button className="close-btn" onClick={() => setShowProvisionModal(false)}>✕</button>
-            </div>
-            <form onSubmit={handleProvisionProject} className="modal-form">
-              <div className="form-group">
-                <label>Project Node Identifier Name:</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., Project Gamma" 
-                  value={newProjName} 
-                  onChange={(e) => setNewProjName(e.target.value)} 
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Workspace / Target Division:</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., Systems Platform Core" 
-                  value={newProjWorkspace} 
-                  onChange={(e) => setNewProjWorkspace(e.target.value)} 
-                />
-              </div>
-              <div className="form-group">
-                <label>Technology Stack Frameworks:</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., Node, Redis, PostgreSQL" 
-                  value={newProjTech} 
-                  onChange={(e) => setNewProjTech(e.target.value)} 
-                />
-              </div>
-              <div className="form-group">
-                <label>Project Objective Description:</label>
-                <textarea 
-                  placeholder="Describe the workspace objective node parameters..." 
-                  value={newProjDesc} 
-                  onChange={(e) => setNewProjDesc(e.target.value)}
-                ></textarea>
-              </div>
-              <div className="form-row">
-                <div className="form-group half">
-                  <label>Target Delivery Date:</label>
-                  <input 
-                    type="date" 
-                    value={newProjDeadline} 
-                    onChange={(e) => setNewProjDeadline(e.target.value)} 
-                  />
-                </div>
-                <div className="form-group half">
-                  <label>Responsible Manager:</label>
-                  <select value={newProjManager} onChange={(e) => setNewProjManager(e.target.value)}>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="modal-actions">
-                <button type="button" className="sec-btn" onClick={() => setShowProvisionModal(false)}>Cancel</button>
-                <button type="submit" className="primary-btn">Initialize Project Node</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ==========================================
-          MODAL: WORKER FOCUS & SCHEDULE PLANNER
-          ========================================== */}
-      {showPlanModal && (
-        <div className="modal-backdrop">
-          <div className="modal-panel glass-modal">
-            <div className="modal-header">
-              <h3>📅 Worker Daily Focus & Month Planner</h3>
-              <button className="close-btn" onClick={() => setShowPlanModal(false)}>✕</button>
-            </div>
-            <form onSubmit={handleCreatePlan} className="modal-form">
-              <div className="form-group">
-                <label>Select Team Specialist:</label>
-                <select value={planUser} onChange={(e) => setPlanUser(e.target.value)}>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.avatar} {u.name} ({u.role})</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Focus Allocation Description:</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., PostgreSQL Performance Optimization" 
-                  value={planFocusText} 
-                  onChange={(e) => setPlanFocusText(e.target.value)} 
-                  required 
-                />
-              </div>
-              <div className="form-row">
-                <div className="form-group half">
-                  <label>Target Date Slot (March 2025):</label>
-                  <input 
-                    type="date" 
-                    value={planDate} 
-                    onChange={(e) => setPlanDate(e.target.value)} 
-                  />
-                </div>
-                <div className="form-group half">
-                  <label>Allocation Stream Classification:</label>
-                  <select value={planType} onChange={(e) => setPlanType(e.target.value)}>
-                    <option value="focus">Priority Task Block</option>
-                    <option value="tuning">Database Tuning Slot</option>
-                    <option value="leave">Worker Leave / OOO</option>
-                  </select>
-                </div>
-              </div>
-              <div className="modal-actions">
-                <button type="button" className="sec-btn" onClick={() => setShowPlanModal(false)}>Cancel</button>
-                <button type="submit" className="primary-btn">Deploy Schedule Slot</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ==========================================
-          MODAL: TASK DEPLOYER & CARD EDITOR
-          ========================================== */}
-      {showTaskModal && (
-        <div className="modal-backdrop">
-          <div className="modal-panel glass-modal">
-            <div className="modal-header">
-              <h3>{editingTask ? '⚙️ Edit Task Specifications' : '🚀 Deploy New Workspace Task Card'}</h3>
-              <button className="close-btn" onClick={() => setShowTaskModal(false)}>✕</button>
-            </div>
-            <form onSubmit={handleSaveTask} className="modal-form">
-              <div className="form-group">
-                <label>Task Description Title:</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., Write API Unit Tests" 
-                  value={taskTitle} 
-                  onChange={(e) => setTaskTitle(e.target.value)} 
-                  required 
-                />
-              </div>
-              <div className="form-row">
-                <div className="form-group half">
-                  <label>Associated Project Mapping Node:</label>
-                  <select value={taskProject} onChange={(e) => setTaskProject(e.target.value)}>
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group half">
-                  <label>Assigned Resource:</label>
-                  <select value={taskAssignee} onChange={(e) => setTaskAssignee(e.target.value)}>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.avatar} {u.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group half">
-                  <label>Pillar Column Status:</label>
-                  <select value={taskStatus} onChange={(e) => setTaskStatus(e.target.value)}>
-                    <option value="To Do">To Do</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Review">Review</option>
-                    <option value="Done">Done</option>
-                  </select>
-                </div>
-                <div className="form-group half">
-                  <label>System Severity Priority:</label>
-                  <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value)}>
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Target Delivery Date:</label>
-                <input 
-                  type="date" 
-                  value={taskDueDate} 
-                  onChange={(e) => setTaskDueDate(e.target.value)} 
-                />
-              </div>
-              <div className="modal-actions-spaced">
-                {editingTask ? (
-                  <button type="button" className="danger-btn" onClick={() => handleDeleteTask(editingTask.id)}>
-                    Delete Card
-                  </button>
-                ) : <div />}
-                <div className="action-right">
-                  <button type="button" className="sec-btn" onClick={() => setShowTaskModal(false)}>Cancel</button>
-                  <button type="submit" className="primary-btn">Commit Changes</button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-
-
-import { useEffect, useMemo, useState } from "react";
-import "./App.css";
+import React, { useMemo, useState } from "react";
 
 const initialProjects = [
   {
     id: 1,
     name: "Website Redesign",
-    description: "Improve the website experience and navigation.",
-    status: "In progress",
-    owner: "AR",
-    ownerName: "Avni Rajput",
-    dueDate: "Oct 28, 2026",
-    progress: 65,
-    color: "violet",
+    description: "Improve the website design and user experience.",
+    deadline: "2026-11-20",
+    manager: "Alex",
   },
   {
     id: 2,
-    name: "Mobile App",
-    description: "Build a better mobile experience for customers.",
-    status: "In progress",
-    owner: "SK",
-    ownerName: "Simran Kapoor",
-    dueDate: "Nov 12, 2026",
-    progress: 35,
-    color: "blue",
-  },
-  {
-    id: 3,
-    name: "Marketing Campaign",
-    description: "Coordinate campaign content and launch activities.",
-    status: "Completed",
-    owner: "RM",
-    ownerName: "Rohan Mehta",
-    dueDate: "Oct 10, 2026",
-    progress: 100,
-    color: "orange",
+    name: "Mobile App Development",
+    description: "Develop a mobile application for customers.",
+    deadline: "2026-12-10",
+    manager: "Sarah",
   },
 ];
-
-function loadProjects() {
-  try {
-    const savedProjects = localStorage.getItem("projectflow-projects");
-
-    if (!savedProjects) {
-      return initialProjects;
-    }
-
-    const parsedProjects = JSON.parse(savedProjects);
-
-    if (!Array.isArray(parsedProjects)) {
-      return initialProjects;
-    }
-
-    // Fill in fields used by the UI so older saved project records remain compatible.
-    return parsedProjects.map((project) => ({
-      ...project,
-      status: project.status === "In Progress" ? "In progress" : (project.status || "In progress"),
-      description: project.description || "No description provided",
-      owner: project.owner || "AR",
-      ownerName: project.ownerName || "Avni Rajput",
-      dueDate: project.dueDate || "Not set",
-      progress: Number.isFinite(project.progress) ? project.progress : 0,
-      color: project.color || "violet",
-    }));
-  } catch (error) {
-    console.error("Failed to load saved projects:", error);
-    return initialProjects;
-  }
-}
 
 const initialTasks = [
   {
     id: 1,
-    title: "Finalize homepage layout",
-    project: "Website Redesign",
+    title: "Design homepage",
+    projectId: 1,
+    assignee: "Alex",
+    status: "To Do",
     priority: "High",
-    status: "In progress",
-    dueDate: "Oct 25, 2026",
-    assignee: "AR",
+    dueDate: "2026-11-10",
   },
   {
     id: 2,
-    title: "Review mobile wireframes",
-    project: "Mobile App",
+    title: "Create navigation bar",
+    projectId: 1,
+    assignee: "Sarah",
+    status: "In Progress",
     priority: "Medium",
-    status: "To do",
-    dueDate: "Oct 27, 2026",
-    assignee: "SK",
+    dueDate: "2026-11-12",
   },
   {
     id: 3,
-    title: "Prepare campaign assets",
-    project: "Marketing Campaign",
-    priority: "Low",
+    title: "Test responsive layout",
+    projectId: 2,
+    assignee: "John",
     status: "Completed",
-    dueDate: "Oct 10, 2026",
-    assignee: "RM",
-  },
-  {
-    id: 4,
-    title: "Test responsive navigation",
-    project: "Website Redesign",
-    priority: "Medium",
-    status: "To do",
-    dueDate: "Oct 26, 2026",
-    assignee: "AR",
+    priority: "Low",
+    dueDate: "2026-11-05",
   },
 ];
 
-const teamMembers = [
-  { initials: "AR", name: "Avni Rajput", role: "Frontend Developer" },
-  { initials: "SK", name: "Simran Kapoor", role: "UI/UX Designer" },
-  { initials: "RM", name: "Rohan Mehta", role: "Project Coordinator" },
-];
+const statuses = ["To Do", "In Progress", "Completed"];
 
-const navigation = [
-  { label: "Dashboard", icon: "▦" },
-  { label: "Projects", icon: "▤" },
-  { label: "My Tasks", icon: "☷" },
-  { label: "Team", icon: "♧" },
-];
+const pageStyle = {
+  minHeight: "100vh",
+  background: "#f5f3ff",
+  color: "#25213b",
+  fontFamily: "Arial, sans-serif",
+};
 
-function App() {
-  const [activePage, setActivePage] = useState("Dashboard");
-  const [projects, setProjects] = useState(loadProjects);
+const buttonStyle = {
+  border: "none",
+  borderRadius: "8px",
+  padding: "10px 16px",
+  cursor: "pointer",
+  background: "#7656d6",
+  color: "white",
+  fontWeight: "600",
+};
+
+const cardStyle = {
+  background: "white",
+  padding: "20px",
+  borderRadius: "12px",
+  boxShadow: "0 3px 12px rgba(0,0,0,0.05)",
+};
+
+export default function App() {
+  const [page, setPage] = useState("Dashboard");
+  const [projects, setProjects] = useState(initialProjects);
   const [tasks, setTasks] = useState(initialTasks);
-  const [search, setSearch] = useState("");
-  const [projectFilter, setProjectFilter] = useState("All projects");
-  const [taskFilter, setTaskFilter] = useState("All tasks");
+
+  const [selectedProject, setSelectedProject] = useState(1);
+  const [editingTask, setEditingTask] = useState(null);
+  const [showTaskForm, setShowTaskForm] = useState(false);
   const [showProjectForm, setShowProjectForm] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectDescription, setNewProjectDescription] = useState("");
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("projectflow-projects", JSON.stringify(projects));
-    } catch (error) {
-      console.error("Failed to save projects:", error);
-    }
-  }, [projects]);
+  const [search, setSearch] = useState("");
+  const [projectFilter, setProjectFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
 
-  const activeProjects = projects.filter(
-    (project) => project.status === "In progress"
+  const [taskForm, setTaskForm] = useState({
+    title: "",
+    projectId: 1,
+    assignee: "",
+    status: "To Do",
+    priority: "Medium",
+    dueDate: "",
+  });
+
+  const [projectForm, setProjectForm] = useState({
+    name: "",
+    description: "",
+    deadline: "",
+    manager: "",
+  });
+
+  const activeProject = projects.find(
+    (project) => project.id === selectedProject
   );
-  const completedProjects = projects.filter(
-    (project) => project.status === "Completed"
+
+  const projectTasks = tasks.filter(
+    (task) => task.projectId === selectedProject
   );
+
   const completedTasks = tasks.filter(
     (task) => task.status === "Completed"
-  );
+  ).length;
 
-  const filteredProjects = useMemo(() => {
-    const query = search.trim().toLowerCase();
+  const inProgressTasks = tasks.filter(
+    (task) => task.status === "In Progress"
+  ).length;
 
-    return projects.filter((project) => {
-      const matchesSearch =
-        project.name.toLowerCase().includes(query) ||
-        project.description.toLowerCase().includes(query) ||
-        project.ownerName.toLowerCase().includes(query);
-
-      const matchesStatus =
-        projectFilter === "All projects" ||
-        project.status === projectFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [projects, search, projectFilter]);
+  const todoTasks = tasks.filter(
+    (task) => task.status === "To Do"
+  ).length;
 
   const filteredTasks = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
     return tasks.filter((task) => {
-      const matchesSearch =
-        task.title.toLowerCase().includes(query) ||
-        task.project.toLowerCase().includes(query);
+      const matchesSearch = task.title
+        .toLowerCase()
+        .includes(search.toLowerCase());
+
+      const matchesProject =
+        projectFilter === "All" ||
+        task.projectId === Number(projectFilter);
 
       const matchesStatus =
-        taskFilter === "All tasks" || task.status ===taskFilter;
+        statusFilter === "All" || task.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesProject && matchesStatus;
     });
-  }, [tasks, search, taskFilter]);
-  function addProject(event) {
-    event.preventDefault();
+  }, [tasks, search, projectFilter, statusFilter]);
 
-    const name = newProjectName.trim();
-    const description = newProjectDescription.trim();
-
-    if (!name) {
-      alert("Please enter a project name.");
-      return;
-    }
-
-    const newProject = {
-      id: Date.now(),
-      name,
-      description: description || "No description provided",
-      status: "In progress",
-      owner: "AR",
-      ownerName: "Avni Rajput",
-      dueDate: "Not set",
-      progress: 0,
-      color: "violet",
-    };
-
-    setProjects((previousProjects) => [...previousProjects, newProject]);
-    setNewProjectName("");
-    setNewProjectDescription("");
-    setShowProjectForm(false);
+  function openCreateTask() {
+    setEditingTask(null);
+    setTaskForm({
+      title: "",
+      projectId: selectedProject,
+      assignee: "",
+      status: "To Do",
+      priority: "Medium",
+      dueDate: "",
+    });
+    setShowTaskForm(true);
   }
 
-  function updateTaskStatus(taskId, nextStatus) {
-    setTasks((currentTasks) =>
-      currentTasks.map((task) =>
-        task.id === taskId ? { ...task, status: nextStatus } : task
+  function openEditTask(task) {
+    setEditingTask(task);
+    setTaskForm({
+      title: task.title,
+      projectId: task.projectId,
+      assignee: task.assignee,
+      status: task.status,
+      priority: task.priority,
+      dueDate: task.dueDate,
+    });
+    setShowTaskForm(true);
+  }
+
+  function saveTask(e) {
+    e.preventDefault();
+
+    if (!taskForm.title.trim()) return;
+
+    if (editingTask) {
+      setTasks((previousTasks) =>
+        previousTasks.map((task) =>
+          task.id === editingTask.id
+            ? { ...task, ...taskForm, projectId: Number(taskForm.projectId) }
+            : task
+        )
+      );
+    } else {
+      const newTask = {
+        id: Date.now(),
+        ...taskForm,
+        projectId: Number(taskForm.projectId),
+      };
+
+      setTasks((previousTasks) => [...previousTasks, newTask]);
+    }
+
+    setShowTaskForm(false);
+    setEditingTask(null);
+  }
+
+  function deleteTask(id) {
+    if (window.confirm("Are you sure you want to delete this task?")) {
+      setTasks((previousTasks) =>
+        previousTasks.filter((task) => task.id !== id)
+      );
+      setShowTaskForm(false);
+    }
+  }
+
+  function updateTaskStatus(taskId, newStatus) {
+    setTasks((previousTasks) =>
+      previousTasks.map((task) =>
+        task.id === taskId ? { ...task, status: newStatus } : task
       )
     );
   }
 
-  function navigateTo(page) {
-    setActivePage(page);
-    setSearch("");
+  function createProject(e) {
+    e.preventDefault();
+
+    if (!projectForm.name.trim()) return;
+
+    const newProject = {
+      id: Date.now(),
+      ...projectForm,
+    };
+
+    setProjects((previousProjects) => [
+      ...previousProjects,
+      newProject,
+    ]);
+
+    setSelectedProject(newProject.id);
+    setProjectForm({
+      name: "",
+      description: "",
+      deadline: "",
+      manager: "",
+    });
+    setShowProjectForm(false);
   }
 
-  function renderDashboard() {
-    return (
-      <>
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">WORKSPACE OVERVIEW</div>
-            <h1>Good work starts here.</h1>
-            <p className="page-description">
-              Keep projects moving, stay on top of tasks, and see what
-              your team is working on.
-            </p>
-          </div>
-
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => {
-              setActivePage("Projects");
-              setShowProjectForm(true);
-            }}
-          >
-            <span>＋</span> New project
-          </button>
-        </div>
-
-        <div className="overview-grid">
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>Total projects</span>
-              <span className="metric-icon">▤</span>
-            </div>
-            <div className="metric-value">{projects.length}</div>
-            <div className="metric-note">Across your workspace</div>
-          </article>
-
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>Active projects</span>
-              <span className="metric-icon progress-icon">◷</span>
-            </div>
-            <div className="metric-value">{activeProjects.length}</div>
-            <div className="metric-note">Currently inprogress</div>
-          </article>
-
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>Tasks completed</span>
-              <span className="metric-icon completed-icon">✓</span>
-            </div>
-            <div className="metric-value">
-              {completedTasks.length}
-              <span className="metric-total"> / {tasks.length}</span>
-            </div>
-            <div className="metric-note">Tasks markedcomplete</div>
-          </article>
-        </div>
-
-        <div className="dashboard-grid">
-          <section className="content-panel">
-            <div className="section-heading">
-              <div>
-                <h2>Projects in progress</h2>
-                <p>A quick look at your team's current work.</p>
-              </div>
-              <button
-                className="text-button"
-                type="button"
-                onClick={() => navigateTo("Projects")}
-              >
-                View all →
-              </button>
-            </div>
-
-            <div className="dashboard-project-list">
-              {activeProjects.map((project) => (
-                <article className="dashboard-project" key={project.id}>
-                  <span className={`project-marker ${project.color}`} />
-                  <div className="dashboard-project-info">
-                    <strong>{project.name}</strong>
-                    <span>{project.dueDate}</span>
-                  </div>
-                  <div className="dashboard-progress">
-                    <div className="progress-track">
-                      <span
-                        className={`progress-fill ${project.color}`}
-                        style={{ width: `${project.progress}%` }}
-                      />
-                    </div>
-                    <span>{project.progress}%</span>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="content-panel activity-panel">
-            <div className="section-heading">
-              <div>
-                <h2>Task overview</h2>
-                <p>Work that needs attention.</p>
-              </div>
-            </div>
-
-            <div className="task-summary">
-              <div className="task-summary-row">
-                <span className="summary-dot todo-dot" />
-                <span>To do</span>
-                <strong>
-                  {tasks.filter((task) => task.status=== "To do").length}
-                </strong>
-              </div>
-              <div className="task-summary-row">
-                <span className="summary-dot progress-dot" />
-                <span>In progress</span>
-                <strong>
-                  {tasks.filter((task) => task.status=== "In progress").length}
-                </strong>
-              </div>
-              <div className="task-summary-row">
-                <span className="summary-dot complete-dot" />
-                <span>Completed</span>
-                <strong>{completedTasks.length}</strong>
-              </div>
-            </div>
-
-            <button
-              className="secondary-button full-width"
-              type="button"
-              onClick={() => navigateTo("My Tasks")}
-            >
-              Open my tasks
-            </button>
-          </section>
-        </div>
-
-        <section className="content-panel team-panel">
-          <div className="section-heading">
-            <div>
-              <h2>Who's on the team</h2>
-              <p>People coordinating work in this demo workspace.</p>
-            </div>
-            <button
-              className="text-button"
-              type="button"
-              onClick={() => navigateTo("Team")}
-            >
-              View team →
-            </button>
-          </div>
-
-          <div className="team-preview">
-            {teamMembers.map((member) => (
-              <div className="team-member" key={member.initials}>
-                <span className="owner-avatar">{member.initials}</span>
-                <div>
-                  <strong>{member.name}</strong>
-                  <span>{member.role}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </>
-    );
-  }
-
-  function renderProjects() {
-    return (
-      <>
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">PROJECT MANAGEMENT</div>
-            <h1>Projects</h1>
-            <p className="page-description">
-              Plan work, coordinate your team, and track project progress
-              from one place.
-            </p>
-          </div>
-
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => setShowProjectForm((visible) => !visible)}
-          >
-            <span>＋</span> New project
-          </button>
-        </div>
-
-        {showProjectForm && (
-          <form className="content-panel project-form" onSubmit={addProject}>
-            <div className="section-heading">
-              <div>
-                <h2>New project</h2>
-                <p>Enter the initial details for yourproject.</p>
-              </div>
-              <button
-                className="text-button"
-                type="button"
-                onClick={() => setShowProjectForm(false)}
-              >
-                Cancel
-              </button>
-            </div>
-
-            <label className="form-field">
-              Project name
-              <input
-                value={newProjectName}
-                onChange={(event) => setNewProjectName(event.target.value)}
-                placeholder="e.g. Customer Portal"
-                required
-              />
-            </label>
-
-            <label className="form-field">
-              Description
-              <textarea
-                value={newProjectDescription}
-                onChange={(event) =>
-                  setNewProjectDescription(event.target.value)
-                }
-                placeholder="What is this project about?"
-                rows={3}
-              />
-            </label>
-
-            <p className="form-note">
-              Projects are saved in this browser. A backend API is not connected yet.
-            </p>
-
-            <button className="primary-button" type="submit">
-              Save project details
-            </button>
-          </form>
-        )}
-
-        <div className="overview-grid">
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>Total projects</span>
-              <span className="metric-icon">▤</span>
-            </div>
-            <div className="metric-value">{projects.length}</div>
-            <div className="metric-note">Across your workspace</div>
-          </article>
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>In progress</span>
-              <span className="metric-icon progress-icon">◷</span>
-            </div>
-            <div className="metric-value">{activeProjects.length}</div>
-            <div className="metric-note">Currently being worked on</div>
-          </article>
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>Completed</span>
-              <span className="metric-icon completed-icon">✓</span>
-            </div>
-            <div className="metric-value">{completedProjects.length}</div>
-            <div className="metric-note">Successfullyfinished</div>
-          </article>
-        </div>
-
-        <section className="content-panel">
-          <div className="section-heading">
-            <div>
-              <h2>Your team's projects</h2>
-              <p>
-                Track ownership, deadlines, and progress across active
-                and completed work.
-              </p>
-            </div>
-            <span className="project-count">
-              {filteredProjects.length} projects
-            </span>
-          </div>
-
-          <div className="project-toolbar">
-            <label className="search-box">
-              <span aria-hidden="true">⌕</span>
-              <input
-                type="search"
-                placeholder="Search projects..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                aria-label="Search projects"
-              />
-            </label>
-
-            <select
-              className="status-filter"
-              value={projectFilter}
-              onChange={(event) => setProjectFilter(event.target.value)}
-              aria-label="Filter projects by status"
-            >
-              <option>All projects</option>
-              <option>In progress</option>
-              <option>Completed</option>
-            </select>
-          </div>
-
-          <div className="project-table-wrap">
-            <table className="project-table">
-              <thead>
-                <tr>
-                  <th>PROJECT</th>
-                  <th>STATUS</th>
-                  <th>OWNER</th>
-                  <th>DUE DATE</th>
-                  <th>PROGRESS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProjects.map((project) => (
-                  <tr key={project.id}>
-                    <td>
-                      <div className="project-name-cell">
-                        <span className={`project-marker ${project.color}`} />
-                        <div>
-                          <strong>{project.name}</strong>
-                          <p>{project.description}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span
-                        className={`status-pill ${
-                          project.status === "Completed"
-                            ? "status-completed"
-                            : "status-progress"
-                        }`}
-                      >
-                        <span className="status-dot" />
-                        {project.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="owner-cell">
-                        <span className="owner-avatar">{project.owner}</span>
-                        <span>{project.ownerName}</span>
-                      </div>
-                    </td>
-                    <td className="due-date">{project.dueDate}</td>
-                    <td>
-                      <div className="progress-cell">
-                        <div
-                          className="progress-track"
-                          role="progressbar"
-                          aria-label={`${project.name} progress`}
-                          aria-valuenow={project.progress}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                        >
-                          <span
-                            className={`progress-fill ${project.color}`}
-                            style={{ width: `${project.progress}%` }}
-                          />
-                        </div>
-                        <span className="progress-number">
-                          {project.progress}%
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredProjects.length === 0 && (
-                  <tr>
-                    <td colSpan="5" className="empty-state">
-                      <strong>No projects found</strong>
-                      <p>Try another search or statusfilter.</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSearch("");
-                          setProjectFilter("All projects");
-                        }}
-                      >
-                        Clear filters
-                      </button>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="table-footer">
-            <span>
-              Showing {filteredProjects.length} of {projects.length} projects
-            </span>
-            <span>Browser storage · Backend not connected</span>
-          </div>
-        </section>
-      </>
-    );
-  }
-
-  function renderTasks() {
-    return (
-      <>
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">WORK ORGANIZATION</div>
-            <h1>My Tasks</h1>
-            <p className="page-description">
-              Keep track of assignments, priorities, and deadlines.
-            </p>
-          </div>
-        </div>
-
-        <div className="overview-grid">
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>All tasks</span>
-              <span className="metric-icon">☷</span>
-            </div>
-            <div className="metric-value">{tasks.length}</div>
-            <div className="metric-note">Tasks in this demo</div>
-          </article>
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>In progress</span>
-              <span className="metric-icon progress-icon">◷</span>
-            </div>
-            <div className="metric-value">
-              {tasks.filter((task) => task.status ==="In progress").length}
-            </div>
-            <div className="metric-note">Currently being worked on</div>
-          </article>
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>Completed</span>
-              <span className="metric-icon completed-icon">✓</span>
-            </div>
-            <div className="metric-value">{completedTasks.length}</div>
-            <div className="metric-note">Marked as completed</div>
-          </article>
-        </div>
-
-        <section className="content-panel">
-          <div className="section-heading">
-            <div>
-              <h2>Task list</h2>
-              <p>Change task status to track progresslocally.</p>
-            </div>
-            <span className="project-count">{filteredTasks.length} tasks</span>
-          </div>
-
-          <div className="project-toolbar">
-            <label className="search-box">
-              <span aria-hidden="true">⌕</span>
-              <input
-                type="search"
-                placeholder="Search tasks or projects..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                aria-label="Search tasks"
-              />
-            </label>
-
-            <select
-              className="status-filter"
-              value={taskFilter}
-              onChange={(event) => setTaskFilter(event.target.value)}
-              aria-label="Filter tasks by status"
-            >
-              <option>All tasks</option>
-              <option>To do</option>
-              <option>In progress</option>
-              <option>Completed</option>
-            </select>
-          </div>
-
-          <div className="task-list">
-            {filteredTasks.map((task) => (
-              <article className="task-row" key={task.id}>
-                <div className="task-main">
-                  <span
-                    className={`task-check ${
-                      task.status === "Completed" ? "checked" : ""
-                    }`}
-                  >
-                    {task.status === "Completed" ? "✓" : ""}
-                  </span>
-                  <div>
-                    <strong
-                      className={
-                        task.status === "Completed" ?"task-done" : ""
-                      }
-                    >
-                      {task.title}
-                    </strong>
-                    <span>{task.project}</span>
-                  </div>
-                </div>
-
-                <span className={`priority-pill priority-${task.priority.toLowerCase()}`}>
-                  {task.priority}
-                </span>
-
-                <span className="due-date">{task.dueDate}</span>
-
-                <select
-                  className="task-status-select"
-                  value={task.status}
-                  onChange={(event) =>
-                    updateTaskStatus(task.id, event.target.value)
-                  }
-                  aria-label={`Status for ${task.title}`}
-                >
-                  <option>To do</option>
-                  <option>In progress</option>
-                  <option>Completed</option>
-                </select>
-              </article>
-            ))}
-
-            {filteredTasks.length === 0 && (
-              <div className="empty-state">
-                <strong>No tasks found</strong>
-                <p>Try changing your search or filter.</p>
-              </div>
-            )}
-          </div>
-          <div className="table-footer">
-            <span>Task status changes are temporary.</span>
-            <span>Backend not connected</span>
-          </div>
-        </section>
-      </>
-    );
-  }
-
-  function renderTeam() {
-    return (
-      <>
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">COLLABORATION</div>
-            <h1>Team</h1>
-            <p className="page-description">
-              See who is coordinating work across your projects.
-            </p>
-          </div>
-        </div>
-
-        <section className="content-panel">
-          <div className="section-heading">
-            <div>
-              <h2>Workspace members</h2>
-              <p>Demo members and their current responsibilities.</p>
-            </div>
-            <span className="project-count">
-              {teamMembers.length} members
-            </span>
-          </div>
-
-          <div className="team-list">
-            {teamMembers.map((member, index) => (
-              <article className="team-list-row" key={member.initials}>
-                <span className={`team-avatar team-color-${index}`}>
-                  {member.initials}
-                </span>
-                <div className="team-person">
-                  <strong>{member.name}</strong>
-                  <span>{member.role}</span>
-                </div>
-                <div className="team-assignment">
-                  <span>Assigned projects</span>
-                  <strong>{index === 0 ? 1 : index === 1 ? 1 : 1}</strong>
-                </div>
-                <span className="status-pill status-progress">
-                  <span className="status-dot" />
-                  Active
-                </span>
-              </article>
-            ))}
-          </div>
-          <div className="table-footer">
-            <span>Member information is sample data.</span>
-            <span>Invitations and permissions are notimplemented.</span>
-          </div>
-        </section>
-      </>
-    );
+  function openProject(projectId) {
+    setSelectedProject(projectId);
+    setPage("Project Details");
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">p</div>
-          <span>projectflow</span>
-        </div>
+    <div style={pageStyle}>
+      {/* HEADER */}
+      <header
+        style={{
+          background: "white",
+          padding: "18px 30px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "15px",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+        }}
+      >
+        <h2 style={{ color: "#7656d6", margin: 0 }}>
+          FlowBoard
+        </h2>
 
-        <div className="workspace-label">WORKSPACE</div>
-
-        <div className="workspace-switcher">
-          <span className="workspace-avatar">W</span>
-          <span className="workspace-info">
-            <strong>Team workspace</strong>
-            <small>Project management</small>
-          </span>
-          <span className="switcher-arrow">⌄</span>
-        </div>
-
-        <div className="nav-label">MENU</div>
-
-        <nav className="main-navigation" aria-label="Main navigation">
-          {navigation.map((item) => (
+        <nav style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          {["Dashboard", "Projects", "My Tasks"].map((item) => (
             <button
-              key={item.label}
-              type="button"
-              className={`nav-item ${
-                activePage === item.label ? "active" : ""
-              }`}
-              onClick={() => navigateTo(item.label)}
+              key={item}
+              onClick={() => setPage(item)}
+              style={{
+                ...buttonStyle,
+                background: page === item ? "#7656d6" : "#eee9ff",
+                color: page === item ? "white" : "#7656d6",
+              }}
             >
-              <span className="nav-icon" aria-hidden="true">
-                {item.icon}
-              </span>
-              <span>{item.label}</span>
-              {item.label === "My Tasks" && (
-                <span className="nav-count">{tasks.length}</span>
-              )}
+              {item}
             </button>
           ))}
         </nav>
+      </header>
 
-        <div className="sidebar-bottom">
-          <div className="sidebar-help">
-            <span className="help-symbol">?</span>
-            <div>
-              <strong>Need a hand?</strong>
-              <small>Help and documentation</small>
+      <main style={{ padding: "30px", maxWidth: "1400px", margin: "auto" }}>
+        {/* DASHBOARD */}
+        {page === "Dashboard" && (
+          <section>
+            <h1>Dashboard</h1>
+            <p>Welcome to your project management workspace.</p>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: "20px",
+                marginTop: "25px",
+              }}
+            >
+              {[
+                ["Total Projects", projects.length],
+                ["Total Tasks", tasks.length],
+                ["To Do", todoTasks],
+                ["In Progress", inProgressTasks],
+                ["Completed", completedTasks],
+              ].map(([label, value]) => (
+                <div key={label} style={cardStyle}>
+                  <p style={{ color: "#777" }}>{label}</p>
+                  <h2 style={{ color: "#7656d6", marginBottom: 0 }}>
+                    {value}
+                  </h2>
+                </div>
+              ))}
             </div>
-          </div>
 
-          <div className="profile">
-            <div className="profile-avatar">AR</div>
-            <div className="profile-info">
-              <strong>Avni Rajput</strong>
-              <small>Frontend Developer</small>
+            <h2 style={{ marginTop: "35px" }}>Recent Projects</h2>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                gap: "20px",
+              }}
+            >
+              {projects.slice(0, 3).map((project) => (
+                <div key={project.id} style={cardStyle}>
+                  <h3>{project.name}</h3>
+                  <p>{project.description}</p>
+                  <button
+                    style={buttonStyle}
+                    onClick={() => openProject(project.id)}
+                  >
+                    View Project
+                  </button>
+                </div>
+              ))}
             </div>
-          </div>
-        </div>
-      </aside>
+          </section>
+        )}
 
-      <main className="main-content">
-        <header className="topbar">
-          <div className="breadcrumb">
-            <span>Workspace</span>
-            <span className="breadcrumb-separator">/</span>
-            <strong>{activePage}</strong>
-          </div>
-          <div className="topbar-actions">
-            <span className="demo-label">DEMO WORKSPACE</span>
-            <div className="topbar-avatar">AR</div>
-          </div>
-        </header>
+        {/* PROJECT LIST */}
+        {page === "Projects" && (
+          <section>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "15px",
+              }}
+            >
+              <h1>My Projects</h1>
+              <button
+                style={buttonStyle}
+                onClick={() => setShowProjectForm(true)}
+              >
+                + Create Project
+              </button>
+            </div>
 
-        <section className="page-container">
-          {activePage === "Dashboard" && renderDashboard()}
-          {activePage === "Projects" && renderProjects()}
-          {activePage === "My Tasks" && renderTasks()}
-          {activePage === "Team" && renderTeam()}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                gap: "20px",
+              }}
+            >
+              {projects.map((project) => (
+                <div key={project.id} style={cardStyle}>
+                  <h3>{project.name}</h3>
+                  <p>{project.description}</p>
+                  <p>
+                    <strong>Manager:</strong> {project.manager || "Not assigned"}
+                  </p>
+                  <p>
+                    <strong>Deadline:</strong> {project.deadline || "Not set"}
+                  </p>
+                  <button
+                    style={buttonStyle}
+                    onClick={() => openProject(project.id)}
+                  >
+                    View Details
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
-          <footer className="page-footer">
-            <span>ProjectFlow</span>
-            <span>Organize work. Move forward together.</span>
-          </footer>
-        </section>
+        {/* PROJECT DETAILS */}
+        {page === "Project Details" && activeProject && (
+          <section>
+            <button
+              style={{ ...buttonStyle, marginBottom: "20px" }}
+              onClick={() => setPage("Projects")}
+            >
+              ← Back to Projects
+            </button>
+
+            <h1>{activeProject.name}</h1>
+            <p>{activeProject.description}</p>
+            <p>
+              <strong>Deadline:</strong> {activeProject.deadline || "Not set"}
+            </p>
+
+            <div style={{ marginTop: "25px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "15px",
+                }}
+              >
+                <h2>Project Tasks</h2>
+                <button style={buttonStyle} onClick={openCreateTask}>
+                  + Add Task
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gap: "15px",
+                  marginTop: "20px",
+                }}
+              >
+                {statuses.map((status) => (
+                  <div
+                    key={status}
+                    style={{
+                      background: "#ebe7f8",
+                      borderRadius: "12px",
+                      padding: "15px",
+                      minHeight: "250px",
+                    }}
+                  >
+                    <h3>
+                      {status} (
+                      {
+                        projectTasks.filter(
+                          (task) => task.status === status
+                        ).length
+                      }
+                      )
+                    </h3>
+
+                    {projectTasks
+                      .filter((task) => task.status === status)
+                      .map((task) => (
+                        <div
+                          key={task.id}
+                          style={{
+                            ...cardStyle,
+                            marginBottom: "12px",
+                            cursor: "pointer",
+                          }}
+                          onClick={() => openEditTask(task)}
+                        >
+                          <strong>{task.title}</strong>
+                          <p>Assigned to: {task.assignee || "Unassigned"}</p>
+                          <p>Priority: {task.priority}</p>
+                          <p>Due: {task.dueDate || "Not set"}</p>
+                          <small style={{ color: "#7656d6" }}>
+                            Click to edit
+                          </small>
+                        </div>
+                      ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* MY TASKS */}
+        {page === "My Tasks" && (
+          <section>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "15px",
+              }}
+            >
+              <h1>My Tasks</h1>
+              <button style={buttonStyle} onClick={openCreateTask}>
+                + Create Task
+              </button>
+            </div>
+
+            <div
+              style={{
+                ...cardStyle,
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "15px",
+                marginBottom: "20px",
+              }}
+            >
+              <input
+                placeholder="Search tasks..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={inputStyle}
+              />
+
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="All">All Projects</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="All">All Statuses</option>
+                {statuses.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ ...cardStyle, overflowX: "auto" }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  minWidth: "650px",
+                }}
+              >
+                <thead>
+                  <tr>
+                    {["Task", "Project", "Assignee", "Priority", "Due Date", "Status", "Action"].map(
+                      (heading) => (
+                        <th
+                          key={heading}
+                          style={{
+                            textAlign: "left",
+                            padding: "12px",
+                            borderBottom: "1px solid #eee",
+                          }}
+                        >
+                          {heading}
+                        </th>
+                      )
+                    )}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredTasks.map((task) => {
+                    const project = projects.find(
+                      (item) => item.id === task.projectId
+                    );
+
+                    return (
+                      <tr key={task.id}>
+                        <td style={cellStyle}>{task.title}</td>
+                        <td style={cellStyle}>{project?.name || "Unknown"}</td>
+                        <td style={cellStyle}>{task.assignee || "Unassigned"}</td>
+                        <td style={cellStyle}>{task.priority}</td>
+                        <td style={cellStyle}>{task.dueDate || "Not set"}</td>
+                        <td style={cellStyle}>{task.status}</td>
+                        <td style={cellStyle}>
+                          <button
+                            style={buttonStyle}
+                            onClick={() => openEditTask(task)}
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {filteredTasks.length === 0 && (
+                    <tr>
+                      <td colSpan="7" style={cellStyle}>
+                        No tasks found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {/* TASK FORM */}
+        {showTaskForm && (
+          <div style={overlayStyle}>
+            <form onSubmit={saveTask} style={modalStyle}>
+              <h2>{editingTask ? "Edit Task" : "Create Task"}</h2>
+
+              <label>Task Title</label>
+              <input
+                style={inputStyle}
+                value={taskForm.title}
+                onChange={(e) =>
+                  setTaskForm({ ...taskForm, title: e.target.value })
+                }
+                required
+              />
+
+              <label>Project</label>
+              <select
+                style={inputStyle}
+                value={taskForm.projectId}
+                onChange={(e) =>
+                  setTaskForm({ ...taskForm, projectId: e.target.value })
+                }
+              >
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+
+              <label>Assignee</label>
+              <input
+                style={inputStyle}
+                value={taskForm.assignee}
+                onChange={(e) =>
+                  setTaskForm({ ...taskForm, assignee: e.target.value })
+                }
+                placeholder="Enter assignee name"
+              />
+
+              <label>Status</label>
+              <select
+                style={inputStyle}
+                value={taskForm.status}
+                onChange={(e) =>
+                  setTaskForm({ ...taskForm, status: e.target.value })
+                }
+              >
+                {statuses.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+
+              <label>Priority</label>
+              <select
+                style={inputStyle}
+                value={taskForm.priority}
+                onChange={(e) =>
+                  setTaskForm({ ...taskForm, priority: e.target.value })
+                }
+              >
+                <option>Low</option>
+                <option>Medium</option>
+                <option>High</option>
+              </select>
+
+              <label>Due Date</label>
+              <input
+                type="date"
+                style={inputStyle}
+                value={taskForm.dueDate}
+                onChange={(e) =>
+                  setTaskForm({ ...taskForm, dueDate: e.target.value })
+                }
+              />
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+                <button type="submit" style={buttonStyle}>
+                  Save Task
+                </button>
+
+                {editingTask && (
+                  <button
+                    type="button"
+                    style={{ ...buttonStyle, background: "#dc3545" }}
+                    onClick={() => deleteTask(editingTask.id)}
+                  >
+                    Delete
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  style={{ ...buttonStyle, background: "#777" }}
+                  onClick={() => setShowTaskForm(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* PROJECT FORM */}
+        {showProjectForm && (
+          <div style={overlayStyle}>
+            <form onSubmit={createProject} style={modalStyle}>
+              <h2>Create Project</h2>
+
+              <label>Project Name</label>
+              <input
+                style={inputStyle}
+                value={projectForm.name}
+                onChange={(e) =>
+                  setProjectForm({ ...projectForm, name: e.target.value })
+                }
+                required
+              />
+
+              <label>Description</label>
+              <textarea
+                style={inputStyle}
+                value={projectForm.description}
+                onChange={(e) =>
+                  setProjectForm({
+                    ...projectForm,
+                    description: e.target.value,
+                  })
+                }
+              />
+
+              <label>Deadline</label>
+              <input
+                type="date"
+                style={inputStyle}
+                value={projectForm.deadline}
+                onChange={(e) =>
+                  setProjectForm({ ...projectForm, deadline: e.target.value })
+                }
+              />
+
+              <label>Project Manager</label>
+              <input
+                style={inputStyle}
+                value={projectForm.manager}
+                onChange={(e) =>
+                  setProjectForm({ ...projectForm, manager: e.target.value })
+                }
+              />
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+                <button type="submit" style={buttonStyle}>
+                  Create Project
+                </button>
+                <button
+                  type="button"
+                  style={{ ...buttonStyle, background: "#777" }}
+                  onClick={() => setShowProjectForm(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </main>
     </div>
   );
 }
 
-export default App;
+const inputStyle = {
+  display: "block",
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "11px",
+  border: "1px solid #ddd",
+  borderRadius: "7px",
+  margin: "8px 0 16px",
+  background: "white",
+};
+
+const cellStyle = {
+  padding: "12px",
+  textAlign: "left",
+  borderBottom: "1px solid #eee",
+};
+
+const overlayStyle = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(25, 20, 40, 0.5)",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  padding: "20px",
+  zIndex: 10,
+};
+
+const modalStyle = {
+  background: "white",
+  padding: "25px",
+  borderRadius: "14px",
+  width: "100%",
+  maxWidth: "480px",
+  maxHeight: "90vh",
+  overflowY: "auto",
+};
