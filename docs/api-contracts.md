@@ -140,6 +140,27 @@ Duplicate registration email returns HTTP `409`:
 Unhandled API errors return HTTP `500`:
 `{"success":false,"message":"An unexpected error occurred"}`.
 
+## Workspace domain API
+
+All workspace routes require a bearer JWT and workspace membership.
+
+| Method | Path | Minimum role | Purpose |
+|---|---|---|---|
+| GET | `/api/workspaces` | authenticated user | List accessible workspaces |
+| POST | `/api/workspaces` | authenticated user | Create workspace |
+| GET/PATCH | `/api/workspaces/:workspaceId` | member/admin | Read or update workspace |
+| GET | `/api/workspaces/:workspaceId/members` | member | List workspace members |
+| POST | `/api/workspaces/:workspaceId/invitations` | admin | Invite a member |
+| GET/POST | `/api/workspaces/:workspaceId/projects` | member | List or create projects |
+| GET/PATCH/DELETE | `/api/workspaces/:workspaceId/projects/:projectId` | member/admin | Project operations |
+| GET | `/api/workspaces/:workspaceId/projects/:projectId/tasks` | member | Search and list project tasks |
+| POST | `/api/workspaces/:workspaceId/tasks` | member | Create a task |
+| GET/PATCH/DELETE | `/api/workspaces/:workspaceId/tasks/:taskId` | member | Task operations |
+| GET/POST | `/api/workspaces/:workspaceId/tasks/:taskId/comments` | member | Read or create comments |
+| GET | `/api/workspaces/:workspaceId/dashboard` | member | Workspace metrics |
+| GET | `/api/workspaces/:workspaceId/notifications` | member | User notifications |
+| PATCH | `/api/workspaces/:workspaceId/notifications/:notificationId/read` | member | Mark notification read |
+
 ## Separate Spring Boot branch
 
 The `main` branch contains a different implementation: Spring Boot project

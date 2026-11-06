@@ -2,6 +2,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
 const { registerSchema, loginSchema } = require("../validators/authValidator");
+const { profileSchema } = require("../validators/domainValidator");
 
 const SALT_ROUNDS = 12;
 const TOKEN_EXPIRATION = process.env.JWT_EXPIRES_IN || "1h";
@@ -122,4 +123,18 @@ async function currentUser(req, res) {
   });
 }
 
-module.exports = { register, login, currentUser };
+async function updateCurrentUser(req, res) {
+  const parsed = profileSchema.safeParse(req.body);
+  if (!parsed.success) return validationError(res, parsed.error);
+
+  const result = await pool.query(
+    `UPDATE users SET name = $1, updated_at = NOW()
+     WHERE id = $2
+     RETURNING id, name, email, created_at, updated_at`,
+    [parsed.data.name, req.user.id]
+  );
+  if (!result.rows[0]) return res.status(404).json({ success: false, message: "User not found" });
+  return res.status(200).json({ success: true, user: publicUser(result.rows[0]) });
+}
+
+module.exports = { register, login, currentUser, updateCurrentUser };

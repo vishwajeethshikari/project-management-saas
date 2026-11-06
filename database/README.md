@@ -1,5 +1,14 @@
 # 🗄️ Daily Development Log — Database Architecture
 
+## Additive migration policy
+
+Use migrations in filename order. Existing `001_create_users.sql` remains the
+user identity source. `002_create_workspace_domain.sql` adds workspaces,
+memberships, projects, tasks, comments, notifications, and foreign keys without
+dropping or rewriting existing records. Apply only after reviewing against a
+current database backup and do not run destructive SQL against production
+without explicit approval.
+
 ## Update: October 26, 2026 — Initial Relational Schema & Seeding Setup
 
 ### Overview
