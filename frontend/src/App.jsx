@@ -1,902 +1,1136 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import "./App.css";
 
 const initialProjects = [
   {
     id: 1,
     name: "Website Redesign",
-    description: "Improve the website experience and navigation.",
-    status: "In progress",
-    owner: "AR",
-    ownerName: "Avni Rajput",
-    dueDate: "Oct 28, 2026",
-    progress: 65,
-    color: "violet",
+    description: "Improve the website design and user experience.",
+    deadline: "2026-11-20",
+    manager: "Alex",
   },
   {
     id: 2,
-    name: "Mobile App",
-    description: "Build a better mobile experience for customers.",
-    status: "In progress",
-    owner: "SK",
-    ownerName: "Simran Kapoor",
-    dueDate: "Nov 12, 2026",
-    progress: 35,
-    color: "blue",
-  },
-  {
-    id: 3,
-    name: "Marketing Campaign",
-    description: "Coordinate campaign content and launch activities.",
-    status: "Completed",
-    owner: "RM",
-    ownerName: "Rohan Mehta",
-    dueDate: "Oct 10, 2026",
-    progress: 100,
-    color: "orange",
+    name: "Mobile App Development",
+    description: "Develop a mobile application for customers.",
+    deadline: "2026-12-10",
+    manager: "Sarah",
   },
 ];
-
-function loadProjects() {
-  try {
-    const savedProjects = localStorage.getItem("projectflow-projects");
-
-    if (!savedProjects) {
-      return initialProjects;
-    }
-
-    const parsedProjects = JSON.parse(savedProjects);
-
-    if (!Array.isArray(parsedProjects)) {
-      return initialProjects;
-    }
-
-    // Fill in fields used by the UI so older saved project records remain compatible.
-    return parsedProjects.map((project) => ({
-      ...project,
-      status: project.status === "In Progress" ? "In progress" : (project.status || "In progress"),
-      description: project.description || "No description provided",
-      owner: project.owner || "AR",
-      ownerName: project.ownerName || "Avni Rajput",
-      dueDate: project.dueDate || "Not set",
-      progress: Number.isFinite(project.progress) ? project.progress : 0,
-      color: project.color || "violet",
-    }));
-  } catch (error) {
-    console.error("Failed to load saved projects:", error);
-    return initialProjects;
-  }
-}
 
 const initialTasks = [
   {
     id: 1,
-    title: "Finalize homepage layout",
-    project: "Website Redesign",
+    title: "Design homepage",
+    projectId: 1,
+    assignee: "Alex",
+    status: "To Do",
     priority: "High",
-    status: "In progress",
-    dueDate: "Oct 25, 2026",
-    assignee: "AR",
+    dueDate: "2026-11-10",
   },
   {
     id: 2,
-    title: "Review mobile wireframes",
-    project: "Mobile App",
+    title: "Create navigation bar",
+    projectId: 1,
+    assignee: "Sarah",
+    status: "In Progress",
     priority: "Medium",
-    status: "To do",
-    dueDate: "Oct 27, 2026",
-    assignee: "SK",
+    dueDate: "2026-11-12",
   },
   {
     id: 3,
-    title: "Prepare campaign assets",
-    project: "Marketing Campaign",
-    priority: "Low",
+    title: "Test responsive layout",
+    projectId: 2,
+    assignee: "John",
     status: "Completed",
-    dueDate: "Oct 10, 2026",
-    assignee: "RM",
-  },
-  {
-    id: 4,
-    title: "Test responsive navigation",
-    project: "Website Redesign",
-    priority: "Medium",
-    status: "To do",
-    dueDate: "Oct 26, 2026",
-    assignee: "AR",
+    priority: "Low",
+    dueDate: "2026-11-05",
   },
 ];
 
-const teamMembers = [
-  { initials: "AR", name: "Avni Rajput", role: "Frontend Developer" },
-  { initials: "SK", name: "Simran Kapoor", role: "UI/UX Designer" },
-  { initials: "RM", name: "Rohan Mehta", role: "Project Coordinator" },
-];
+const statuses = ["To Do", "In Progress", "Completed"];
 
-const navigation = [
-  { label: "Dashboard", icon: "▦" },
-  { label: "Projects", icon: "▤" },
-  { label: "My Tasks", icon: "☷" },
-  { label: "Team", icon: "♧" },
-];
+const pageStyle = {
+  minHeight: "100vh",
+  background: "#f5f3ff",
+  color: "#25213b",
+  fontFamily: "Inter, sans-serif",
+};
 
-function App() {
-  const [activePage, setActivePage] = useState("Dashboard");
-  const [projects, setProjects] = useState(loadProjects);
+const buttonStyle = {
+  border: "none",
+  borderRadius: "8px",
+  padding: "10px 16px",
+  cursor: "pointer",
+  background: "#7656d6",
+  color: "white",
+  fontWeight: "600",
+};
+
+const cardStyle = {
+  background: "white",
+  padding: "20px",
+  borderRadius: "12px",
+  boxShadow: "0 3px 12px rgba(0,0,0,0.05)",
+};
+
+export default function App() {
+  const [page, setPage] = useState("Dashboard");
+  const [projects, setProjects] = useState(initialProjects);
   const [tasks, setTasks] = useState(initialTasks);
-  const [search, setSearch] = useState("");
-  const [projectFilter, setProjectFilter] = useState("All projects");
-  const [taskFilter, setTaskFilter] = useState("All tasks");
+  const [selectedProject, setSelectedProject] = useState(1);
+  const [editingTask, setEditingTask] = useState(null);
+  const [showTaskForm, setShowTaskForm] = useState(false);
   const [showProjectForm, setShowProjectForm] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectDescription, setNewProjectDescription] = useState("");
+  const [search, setSearch] = useState("");
+  const [projectFilter, setProjectFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("projectflow-projects", JSON.stringify(projects));
-    } catch (error) {
-      console.error("Failed to save projects:", error);
-    }
-  }, [projects]);
+  const [taskForm, setTaskForm] = useState({
+    title: "",
+    projectId: 1,
+    assignee: "",
+    status: "To Do",
+    priority: "Medium",
+    dueDate: "",
+  });
 
-  const activeProjects = projects.filter(
-    (project) => project.status === "In progress"
+  const [projectForm, setProjectForm] = useState({
+    name: "",
+    description: "",
+    deadline: "",
+    manager: "",
+  });
+
+  const activeProject = projects.find(
+    (project) => project.id === selectedProject
   );
-  const completedProjects = projects.filter(
-    (project) => project.status === "Completed"
+
+  const projectTasks = tasks.filter(
+    (task) => task.projectId === selectedProject
   );
+
   const completedTasks = tasks.filter(
     (task) => task.status === "Completed"
-  );
+  ).length;
 
-  const filteredProjects = useMemo(() => {
-    const query = search.trim().toLowerCase();
+  const inProgressTasks = tasks.filter(
+    (task) => task.status === "In Progress"
+  ).length;
 
-    return projects.filter((project) => {
-      const matchesSearch =
-        project.name.toLowerCase().includes(query) ||
-        project.description.toLowerCase().includes(query) ||
-        project.ownerName.toLowerCase().includes(query);
-
-      const matchesStatus =
-        projectFilter === "All projects" ||
-        project.status === projectFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [projects, search, projectFilter]);
+  const todoTasks = tasks.filter(
+    (task) => task.status === "To Do"
+  ).length;
 
   const filteredTasks = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
     return tasks.filter((task) => {
-      const matchesSearch =
-        task.title.toLowerCase().includes(query) ||
-        task.project.toLowerCase().includes(query);
+      const matchesSearch = task.title
+        .toLowerCase()
+        .includes(search.toLowerCase());
+
+      const matchesProject =
+        projectFilter === "All" ||
+        task.projectId === Number(projectFilter);
 
       const matchesStatus =
-        taskFilter === "All tasks" || task.status ===taskFilter;
+        statusFilter === "All" || task.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesProject && matchesStatus;
     });
-  }, [tasks, search, taskFilter]);
-  function addProject(event) {
-    event.preventDefault();
+  }, [tasks, search, projectFilter, statusFilter]);
 
-    const name = newProjectName.trim();
-    const description = newProjectDescription.trim();
-
-    if (!name) {
-      alert("Please enter a project name.");
-      return;
-    }
-
-    const newProject = {
-      id: Date.now(),
-      name,
-      description: description || "No description provided",
-      status: "In progress",
-      owner: "AR",
-      ownerName: "Avni Rajput",
-      dueDate: "Not set",
-      progress: 0,
-      color: "violet",
-    };
-
-    setProjects((previousProjects) => [...previousProjects, newProject]);
-    setNewProjectName("");
-    setNewProjectDescription("");
-    setShowProjectForm(false);
+  function openCreateTask() {
+    setEditingTask(null);
+    setTaskForm({
+      title: "",
+      projectId: selectedProject,
+      assignee: "",
+      status: "To Do",
+      priority: "Medium",
+      dueDate: "",
+    });
+    setShowTaskForm(true);
   }
 
-  function updateTaskStatus(taskId, nextStatus) {
-    setTasks((currentTasks) =>
-      currentTasks.map((task) =>
-        task.id === taskId ? { ...task, status: nextStatus } : task
+  function openEditTask(task) {
+    setEditingTask(task);
+    setTaskForm({
+      title: task.title,
+      projectId: task.projectId,
+      assignee: task.assignee,
+      status: task.status,
+      priority: task.priority,
+      dueDate: task.dueDate,
+    });
+    setShowTaskForm(true);
+  }
+
+  function saveTask(e) {
+    e.preventDefault();
+
+    if (!taskForm.title.trim()) return;
+
+    if (editingTask) {
+      setTasks((previousTasks) =>
+        previousTasks.map((task) =>
+          task.id === editingTask.id
+            ? {
+                ...task,
+                ...taskForm,
+                projectId: Number(taskForm.projectId),
+              }
+            : task
+        )
+      );
+    } else {
+      const newTask = {
+        id: Date.now(),
+        ...taskForm,
+        projectId: Number(taskForm.projectId),
+      };
+
+      setTasks((previousTasks) => [...previousTasks, newTask]);
+    }
+
+    setShowTaskForm(false);
+    setEditingTask(null);
+  }
+
+  function deleteTask(id) {
+    if (window.confirm("Are you sure you want to delete this task?")) {
+      setTasks((previousTasks) =>
+        previousTasks.filter((task) => task.id !== id)
+      );
+
+      setShowTaskForm(false);
+    }
+  }
+
+  function updateTaskStatus(taskId, newStatus) {
+    setTasks((previousTasks) =>
+      previousTasks.map((task) =>
+        task.id === taskId ? { ...task, status: newStatus } : task
       )
     );
   }
 
-  function navigateTo(page) {
-    setActivePage(page);
-    setSearch("");
+  function createProject(e) {
+    e.preventDefault();
+
+    if (!projectForm.name.trim()) return;
+
+    const newProject = {
+      id: Date.now(),
+      ...projectForm,
+    };
+
+    setProjects((previousProjects) => [
+      ...previousProjects,
+      newProject,
+    ]);
+
+    setSelectedProject(newProject.id);
+
+    setProjectForm({
+      name: "",
+      description: "",
+      deadline: "",
+      manager: "",
+    });
+
+    setShowProjectForm(false);
   }
 
-  function renderDashboard() {
-    return (
-      <>
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">WORKSPACE OVERVIEW</div>
-            <h1>Good work starts here.</h1>
-            <p className="page-description">
-              Keep projects moving, stay on top of tasks, and see what
-              your team is working on.
-            </p>
-          </div>
-
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => {
-              setActivePage("Projects");
-              setShowProjectForm(true);
-            }}
-          >
-            <span>＋</span> New project
-          </button>
-        </div>
-
-        <div className="overview-grid">
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>Total projects</span>
-              <span className="metric-icon">▤</span>
-            </div>
-            <div className="metric-value">{projects.length}</div>
-            <div className="metric-note">Across your workspace</div>
-          </article>
-
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>Active projects</span>
-              <span className="metric-icon progress-icon">◷</span>
-            </div>
-            <div className="metric-value">{activeProjects.length}</div>
-            <div className="metric-note">Currently inprogress</div>
-          </article>
-
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>Tasks completed</span>
-              <span className="metric-icon completed-icon">✓</span>
-            </div>
-            <div className="metric-value">
-              {completedTasks.length}
-              <span className="metric-total"> / {tasks.length}</span>
-            </div>
-            <div className="metric-note">Tasks markedcomplete</div>
-          </article>
-        </div>
-
-        <div className="dashboard-grid">
-          <section className="content-panel">
-            <div className="section-heading">
-              <div>
-                <h2>Projects in progress</h2>
-                <p>A quick look at your team's current work.</p>
-              </div>
-              <button
-                className="text-button"
-                type="button"
-                onClick={() => navigateTo("Projects")}
-              >
-                View all →
-              </button>
-            </div>
-
-            <div className="dashboard-project-list">
-              {activeProjects.map((project) => (
-                <article className="dashboard-project" key={project.id}>
-                  <span className={`project-marker ${project.color}`} />
-                  <div className="dashboard-project-info">
-                    <strong>{project.name}</strong>
-                    <span>{project.dueDate}</span>
-                  </div>
-                  <div className="dashboard-progress">
-                    <div className="progress-track">
-                      <span
-                        className={`progress-fill ${project.color}`}
-                        style={{ width: `${project.progress}%` }}
-                      />
-                    </div>
-                    <span>{project.progress}%</span>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="content-panel activity-panel">
-            <div className="section-heading">
-              <div>
-                <h2>Task overview</h2>
-                <p>Work that needs attention.</p>
-              </div>
-            </div>
-
-            <div className="task-summary">
-              <div className="task-summary-row">
-                <span className="summary-dot todo-dot" />
-                <span>To do</span>
-                <strong>
-                  {tasks.filter((task) => task.status=== "To do").length}
-                </strong>
-              </div>
-              <div className="task-summary-row">
-                <span className="summary-dot progress-dot" />
-                <span>In progress</span>
-                <strong>
-                  {tasks.filter((task) => task.status=== "In progress").length}
-                </strong>
-              </div>
-              <div className="task-summary-row">
-                <span className="summary-dot complete-dot" />
-                <span>Completed</span>
-                <strong>{completedTasks.length}</strong>
-              </div>
-            </div>
-
-            <button
-              className="secondary-button full-width"
-              type="button"
-              onClick={() => navigateTo("My Tasks")}
-            >
-              Open my tasks
-            </button>
-          </section>
-        </div>
-
-        <section className="content-panel team-panel">
-          <div className="section-heading">
-            <div>
-              <h2>Who's on the team</h2>
-              <p>People coordinating work in this demo workspace.</p>
-            </div>
-            <button
-              className="text-button"
-              type="button"
-              onClick={() => navigateTo("Team")}
-            >
-              View team →
-            </button>
-          </div>
-
-          <div className="team-preview">
-            {teamMembers.map((member) => (
-              <div className="team-member" key={member.initials}>
-                <span className="owner-avatar">{member.initials}</span>
-                <div>
-                  <strong>{member.name}</strong>
-                  <span>{member.role}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </>
-    );
-  }
-
-  function renderProjects() {
-    return (
-      <>
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">PROJECT MANAGEMENT</div>
-            <h1>Projects</h1>
-            <p className="page-description">
-              Plan work, coordinate your team, and track project progress
-              from one place.
-            </p>
-          </div>
-
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => setShowProjectForm((visible) => !visible)}
-          >
-            <span>＋</span> New project
-          </button>
-        </div>
-
-        {showProjectForm && (
-          <form className="content-panel project-form" onSubmit={addProject}>
-            <div className="section-heading">
-              <div>
-                <h2>New project</h2>
-                <p>Enter the initial details for yourproject.</p>
-              </div>
-              <button
-                className="text-button"
-                type="button"
-                onClick={() => setShowProjectForm(false)}
-              >
-                Cancel
-              </button>
-            </div>
-
-            <label className="form-field">
-              Project name
-              <input
-                value={newProjectName}
-                onChange={(event) => setNewProjectName(event.target.value)}
-                placeholder="e.g. Customer Portal"
-                required
-              />
-            </label>
-
-            <label className="form-field">
-              Description
-              <textarea
-                value={newProjectDescription}
-                onChange={(event) =>
-                  setNewProjectDescription(event.target.value)
-                }
-                placeholder="What is this project about?"
-                rows={3}
-              />
-            </label>
-
-            <p className="form-note">
-              Projects are saved in this browser. A backend API is not connected yet.
-            </p>
-
-            <button className="primary-button" type="submit">
-              Save project details
-            </button>
-          </form>
-        )}
-
-        <div className="overview-grid">
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>Total projects</span>
-              <span className="metric-icon">▤</span>
-            </div>
-            <div className="metric-value">{projects.length}</div>
-            <div className="metric-note">Across your workspace</div>
-          </article>
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>In progress</span>
-              <span className="metric-icon progress-icon">◷</span>
-            </div>
-            <div className="metric-value">{activeProjects.length}</div>
-            <div className="metric-note">Currently being worked on</div>
-          </article>
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>Completed</span>
-              <span className="metric-icon completed-icon">✓</span>
-            </div>
-            <div className="metric-value">{completedProjects.length}</div>
-            <div className="metric-note">Successfullyfinished</div>
-          </article>
-        </div>
-
-        <section className="content-panel">
-          <div className="section-heading">
-            <div>
-              <h2>Your team's projects</h2>
-              <p>
-                Track ownership, deadlines, and progress across active
-                and completed work.
-              </p>
-            </div>
-            <span className="project-count">
-              {filteredProjects.length} projects
-            </span>
-          </div>
-
-          <div className="project-toolbar">
-            <label className="search-box">
-              <span aria-hidden="true">⌕</span>
-              <input
-                type="search"
-                placeholder="Search projects..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                aria-label="Search projects"
-              />
-            </label>
-
-            <select
-              className="status-filter"
-              value={projectFilter}
-              onChange={(event) => setProjectFilter(event.target.value)}
-              aria-label="Filter projects by status"
-            >
-              <option>All projects</option>
-              <option>In progress</option>
-              <option>Completed</option>
-            </select>
-          </div>
-
-          <div className="project-table-wrap">
-            <table className="project-table">
-              <thead>
-                <tr>
-                  <th>PROJECT</th>
-                  <th>STATUS</th>
-                  <th>OWNER</th>
-                  <th>DUE DATE</th>
-                  <th>PROGRESS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProjects.map((project) => (
-                  <tr key={project.id}>
-                    <td>
-                      <div className="project-name-cell">
-                        <span className={`project-marker ${project.color}`} />
-                        <div>
-                          <strong>{project.name}</strong>
-                          <p>{project.description}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span
-                        className={`status-pill ${
-                          project.status === "Completed"
-                            ? "status-completed"
-                            : "status-progress"
-                        }`}
-                      >
-                        <span className="status-dot" />
-                        {project.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="owner-cell">
-                        <span className="owner-avatar">{project.owner}</span>
-                        <span>{project.ownerName}</span>
-                      </div>
-                    </td>
-                    <td className="due-date">{project.dueDate}</td>
-                    <td>
-                      <div className="progress-cell">
-                        <div
-                          className="progress-track"
-                          role="progressbar"
-                          aria-label={`${project.name} progress`}
-                          aria-valuenow={project.progress}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                        >
-                          <span
-                            className={`progress-fill ${project.color}`}
-                            style={{ width: `${project.progress}%` }}
-                          />
-                        </div>
-                        <span className="progress-number">
-                          {project.progress}%
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredProjects.length === 0 && (
-                  <tr>
-                    <td colSpan="5" className="empty-state">
-                      <strong>No projects found</strong>
-                      <p>Try another search or statusfilter.</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSearch("");
-                          setProjectFilter("All projects");
-                        }}
-                      >
-                        Clear filters
-                      </button>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="table-footer">
-            <span>
-              Showing {filteredProjects.length} of {projects.length} projects
-            </span>
-            <span>Browser storage · Backend not connected</span>
-          </div>
-        </section>
-      </>
-    );
-  }
-
-  function renderTasks() {
-    return (
-      <>
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">WORK ORGANIZATION</div>
-            <h1>My Tasks</h1>
-            <p className="page-description">
-              Keep track of assignments, priorities, and deadlines.
-            </p>
-          </div>
-        </div>
-
-        <div className="overview-grid">
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>All tasks</span>
-              <span className="metric-icon">☷</span>
-            </div>
-            <div className="metric-value">{tasks.length}</div>
-            <div className="metric-note">Tasks in this demo</div>
-          </article>
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>In progress</span>
-              <span className="metric-icon progress-icon">◷</span>
-            </div>
-            <div className="metric-value">
-              {tasks.filter((task) => task.status ==="In progress").length}
-            </div>
-            <div className="metric-note">Currently being worked on</div>
-          </article>
-          <article className="overview-card">
-            <div className="overview-card-top">
-              <span>Completed</span>
-              <span className="metric-icon completed-icon">✓</span>
-            </div>
-            <div className="metric-value">{completedTasks.length}</div>
-            <div className="metric-note">Marked as completed</div>
-          </article>
-        </div>
-
-        <section className="content-panel">
-          <div className="section-heading">
-            <div>
-              <h2>Task list</h2>
-              <p>Change task status to track progresslocally.</p>
-            </div>
-            <span className="project-count">{filteredTasks.length} tasks</span>
-          </div>
-
-          <div className="project-toolbar">
-            <label className="search-box">
-              <span aria-hidden="true">⌕</span>
-              <input
-                type="search"
-                placeholder="Search tasks or projects..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                aria-label="Search tasks"
-              />
-            </label>
-
-            <select
-              className="status-filter"
-              value={taskFilter}
-              onChange={(event) => setTaskFilter(event.target.value)}
-              aria-label="Filter tasks by status"
-            >
-              <option>All tasks</option>
-              <option>To do</option>
-              <option>In progress</option>
-              <option>Completed</option>
-            </select>
-          </div>
-
-          <div className="task-list">
-            {filteredTasks.map((task) => (
-              <article className="task-row" key={task.id}>
-                <div className="task-main">
-                  <span
-                    className={`task-check ${
-                      task.status === "Completed" ? "checked" : ""
-                    }`}
-                  >
-                    {task.status === "Completed" ? "✓" : ""}
-                  </span>
-                  <div>
-                    <strong
-                      className={
-                        task.status === "Completed" ?"task-done" : ""
-                      }
-                    >
-                      {task.title}
-                    </strong>
-                    <span>{task.project}</span>
-                  </div>
-                </div>
-
-                <span className={`priority-pill priority-${task.priority.toLowerCase()}`}>
-                  {task.priority}
-                </span>
-
-                <span className="due-date">{task.dueDate}</span>
-
-                <select
-                  className="task-status-select"
-                  value={task.status}
-                  onChange={(event) =>
-                    updateTaskStatus(task.id, event.target.value)
-                  }
-                  aria-label={`Status for ${task.title}`}
-                >
-                  <option>To do</option>
-                  <option>In progress</option>
-                  <option>Completed</option>
-                </select>
-              </article>
-            ))}
-
-            {filteredTasks.length === 0 && (
-              <div className="empty-state">
-                <strong>No tasks found</strong>
-                <p>Try changing your search or filter.</p>
-              </div>
-            )}
-          </div>
-          <div className="table-footer">
-            <span>Task status changes are temporary.</span>
-            <span>Backend not connected</span>
-          </div>
-        </section>
-      </>
-    );
-  }
-
-  function renderTeam() {
-    return (
-      <>
-        <div className="page-heading">
-          <div>
-            <div className="eyebrow">COLLABORATION</div>
-            <h1>Team</h1>
-            <p className="page-description">
-              See who is coordinating work across your projects.
-            </p>
-          </div>
-        </div>
-
-        <section className="content-panel">
-          <div className="section-heading">
-            <div>
-              <h2>Workspace members</h2>
-              <p>Demo members and their current responsibilities.</p>
-            </div>
-            <span className="project-count">
-              {teamMembers.length} members
-            </span>
-          </div>
-
-          <div className="team-list">
-            {teamMembers.map((member, index) => (
-              <article className="team-list-row" key={member.initials}>
-                <span className={`team-avatar team-color-${index}`}>
-                  {member.initials}
-                </span>
-                <div className="team-person">
-                  <strong>{member.name}</strong>
-                  <span>{member.role}</span>
-                </div>
-                <div className="team-assignment">
-                  <span>Assigned projects</span>
-                  <strong>{index === 0 ? 1 : index === 1 ? 1 : 1}</strong>
-                </div>
-                <span className="status-pill status-progress">
-                  <span className="status-dot" />
-                  Active
-                </span>
-              </article>
-            ))}
-          </div>
-          <div className="table-footer">
-            <span>Member information is sample data.</span>
-            <span>Invitations and permissions are notimplemented.</span>
-          </div>
-        </section>
-      </>
-    );
+  function openProject(projectId) {
+    setSelectedProject(projectId);
+    setPage("Project Details");
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">p</div>
-          <span>projectflow</span>
-        </div>
+    <div style={pageStyle}>
+      <div className="app-container">
+        <aside className="sidebar">
+          <div className="logo">
+            <span>✦</span> FlowBoard
+          </div>
 
-        <div className="workspace-label">WORKSPACE</div>
+          <p className="sidebar-label">WORKSPACE</p>
 
-        <div className="workspace-switcher">
-          <span className="workspace-avatar">W</span>
-          <span className="workspace-info">
-            <strong>Team workspace</strong>
-            <small>Project management</small>
-          </span>
-          <span className="switcher-arrow">⌄</span>
-        </div>
-
-        <div className="nav-label">MENU</div>
-
-        <nav className="main-navigation" aria-label="Main navigation">
-          {navigation.map((item) => (
+          <nav>
             <button
-              key={item.label}
-              type="button"
-              className={`nav-item ${
-                activePage === item.label ? "active" : ""
-              }`}
-              onClick={() => navigateTo(item.label)}
+              className={page === "Dashboard" ? "nav-item active" : "nav-item"}
+              onClick={() => setPage("Dashboard")}
             >
-              <span className="nav-icon" aria-hidden="true">
-                {item.icon}
-              </span>
-              <span>{item.label}</span>
-              {item.label === "My Tasks" && (
-                <span className="nav-count">{tasks.length}</span>
-              )}
+              <span>▦</span> Dashboard
             </button>
-          ))}
-        </nav>
 
-        <div className="sidebar-bottom">
-          <div className="sidebar-help">
-            <span className="help-symbol">?</span>
+            <button
+              className={page === "Projects" ? "nav-item active" : "nav-item"}
+              onClick={() => setPage("Projects")}
+            >
+              <span>▤</span> My Projects
+            </button>
+
+            <button
+              className={page === "My Tasks" ? "nav-item active" : "nav-item"}
+              onClick={() => setPage("My Tasks")}
+            >
+              <span>☷</span> My Tasks
+            </button>
+          </nav>
+
+          <div className="sidebar-bottom">
+            <div className="profile-avatar">KS</div>
             <div>
-              <strong>Need a hand?</strong>
-              <small>Help and documentation</small>
+              <strong>Workspace User</strong>
+              <small>Team Member</small>
             </div>
           </div>
+        </aside>
 
-          <div className="profile">
-            <div className="profile-avatar">AR</div>
-            <div className="profile-info">
-              <strong>Avni Rajput</strong>
-              <small>Frontend Developer</small>
+        <main className="main-content">
+          <header className="topbar">
+            <div>
+              <span className="breadcrumb">Workspace /</span>
+              <strong>{page}</strong>
             </div>
-          </div>
-        </div>
-      </aside>
+            <div className="topbar-right">
+              <span className="notification-icon">♧</span>
+              <div className="topbar-avatar">KS</div>
+            </div>
+          </header>
 
-      <main className="main-content">
-        <header className="topbar">
-          <div className="breadcrumb">
-            <span>Workspace</span>
-            <span className="breadcrumb-separator">/</span>
-            <strong>{activePage}</strong>
-          </div>
-          <div className="topbar-actions">
-            <span className="demo-label">DEMO WORKSPACE</span>
-            <div className="topbar-avatar">AR</div>
-          </div>
-        </header>
+          {page === "Dashboard" && (
+            <section className="dashboard">
+              <div className="dashboard-hero">
+                <div className="hero-content">
+                  <span className="hero-label">WORKSPACE OVERVIEW</span>
+                  <h1>Good to see you! 👋</h1>
+                  <p>
+                    Here's what's happening across your projects. Stay focused
+                    and keep moving forward.
+                  </p>
+                  <button
+                    className="hero-button"
+                    onClick={() => setPage("Projects")}
+                  >
+                    Explore Projects <span>→</span>
+                  </button>
+                </div>
 
-        <section className="page-container">
-          {activePage === "Dashboard" && renderDashboard()}
-          {activePage === "Projects" && renderProjects()}
-          {activePage === "My Tasks" && renderTasks()}
-          {activePage === "Team" && renderTeam()}
+                <div className="hero-decoration">
+                  <div className="hero-orbit orbit-one"></div>
+                  <div className="hero-orbit orbit-two"></div>
+                  <div className="hero-glass-card">
+                    <span>✦</span>
+                    <strong>{completedTasks}</strong>
+                    <small>Tasks completed</small>
+                  </div>
+                </div>
+              </div>
 
-          <footer className="page-footer">
-            <span>ProjectFlow</span>
-            <span>Organize work. Move forward together.</span>
-          </footer>
-        </section>
-      </main>
+              <div className="dashboard-heading">
+                <div>
+                  <span className="section-eyebrow">YOUR WORKSPACE</span>
+                  <h2>Overview</h2>
+                  <p>A quick snapshot of your team's progress.</p>
+                </div>
+
+                <button
+                  className="dashboard-add-button"
+                  onClick={openCreateTask}
+                >
+                  + New Task
+                </button>
+              </div>
+
+              <div className="stats-grid">
+                <div className="stat-card stat-purple">
+                  <div className="stat-top">
+                    <span>Total Projects</span>
+                    <span className="stat-icon">▦</span>
+                  </div>
+                  <h2>{projects.length}</h2>
+                  <p>Projects in your workspace</p>
+                  <div className="stat-bottom-line"></div>
+                </div>
+
+                <div className="stat-card stat-blue">
+                  <div className="stat-top">
+                    <span>Total Tasks</span>
+                    <span className="stat-icon">☷</span>
+                  </div>
+                  <h2>{tasks.length}</h2>
+                  <p>Tasks across all projects</p>
+                  <div className="stat-bottom-line"></div>
+                </div>
+
+                <div className="stat-card stat-orange">
+                  <div className="stat-top">
+                    <span>In Progress</span>
+                    <span className="stat-icon">◷</span>
+                  </div>
+                  <h2>{inProgressTasks}</h2>
+                  <p>Tasks currently underway</p>
+                  <div className="stat-bottom-line"></div>
+                </div>
+
+                <div className="stat-card stat-green">
+                  <div className="stat-top">
+                    <span>Completed</span>
+                    <span className="stat-icon">✓</span>
+                  </div>
+                  <h2>{completedTasks}</h2>
+                  <p>Tasks successfully finished</p>
+                  <div className="stat-bottom-line"></div>
+                </div>
+              </div>
+
+              <div className="dashboard-content-grid">
+                <div className="dashboard-panel projects-panel">
+                  <div className="panel-heading">
+                    <div>
+                      <h3>Recent Projects</h3>
+                      <p>Keep track of your active work.</p>
+                    </div>
+                    <button
+                      className="text-link"
+                      onClick={() => setPage("Projects")}
+                    >
+                      View all →
+                    </button>
+                  </div>
+
+                  <div className="dashboard-project-list">
+                    {projects.slice(0, 4).map((project, index) => {
+                      const relatedTasks = tasks.filter(
+                        (task) => task.projectId === project.id
+                      );
+
+                      const finishedTasks = relatedTasks.filter(
+                        (task) => task.status === "Completed"
+                      ).length;
+
+                      const progress = relatedTasks.length
+                        ? Math.round(
+                            (finishedTasks / relatedTasks.length) * 100
+                          )
+                        : 0;
+
+                      const projectColors = [
+                        "project-purple",
+                        "project-blue",
+                        "project-orange",
+                        "project-green",
+                      ];
+
+                      return (
+                        <div
+                          className="dashboard-project-row"
+                          key={project.id}
+                        >
+                          <div
+                            className={`project-symbol ${
+                              projectColors[index % 4]
+                            }`}
+                          >
+                            {project.name.charAt(0).toUpperCase()}
+                          </div>
+
+                          <div className="project-row-info">
+                            <div className="project-row-title">
+                              <strong>{project.name}</strong>
+                              <span>{relatedTasks.length} tasks</span>
+                            </div>
+
+                            <div className="progress-track">
+                              <div
+                                className="progress-fill"
+                                style={{ width: `${progress}%` }}
+                              ></div>
+                            </div>
+
+                            <div className="progress-caption">
+                              <span>{progress}% completed</span>
+                              <span>
+                                {finishedTasks}/{relatedTasks.length} tasks
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            className="project-open-button"
+                            onClick={() => openProject(project.id)}
+                            aria-label={`Open ${project.name}`}
+                          >
+                            →
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {projects.length === 0 && (
+                      <div className="dashboard-empty">
+                        No projects yet. Create your first project!
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="dashboard-panel task-overview-panel">
+                  <div className="panel-heading">
+                    <div>
+                      <h3>Task Overview</h3>
+                      <p>Current task distribution.</p>
+                    </div>
+                    <span className="overview-icon">◉</span>
+                  </div>
+
+                  <div className="task-overview-total">
+                    <strong>{tasks.length}</strong>
+                    <span>Total tasks</span>
+                  </div>
+
+                  <div className="task-breakdown">
+                    <div className="task-breakdown-item">
+                      <div className="breakdown-label">
+                        <span>
+                          <i className="dot dot-todo"></i> To Do
+                        </span>
+                        <strong>{todoTasks}</strong>
+                      </div>
+                      <div className="breakdown-track">
+                        <div
+                          className="breakdown-fill fill-todo"
+                          style={{
+                            width: `${
+                              tasks.length
+                                ? (todoTasks / tasks.length) * 100
+                                : 0
+                            }%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div className="task-breakdown-item">
+                      <div className="breakdown-label">
+                        <span>
+                          <i className="dot dot-progress"></i> In Progress
+                        </span>
+                        <strong>{inProgressTasks}</strong>
+                      </div>
+                      <div className="breakdown-track">
+                        <div
+                          className="breakdown-fill fill-progress"
+                          style={{
+                            width: `${
+                              tasks.length
+                                ? (inProgressTasks / tasks.length) * 100
+                                : 0
+                            }%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div className="task-breakdown-item">
+                      <div className="breakdown-label">
+                        <span>
+                          <i className="dot dot-completed"></i> Completed
+                        </span>
+                        <strong>{completedTasks}</strong>
+                      </div>
+                      <div className="breakdown-track">
+                        <div
+                          className="breakdown-fill fill-completed"
+                          style={{
+                            width: `${
+                              tasks.length
+                                ? (completedTasks / tasks.length) * 100
+                                : 0
+                            }%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    className="overview-link"
+                    onClick={() => setPage("My Tasks")}
+                  >
+                    Manage all tasks →
+                  </button>
+                </div>
+              </div>
+
+              <div className="dashboard-panel recent-tasks-panel">
+                <div className="panel-heading">
+                  <div>
+                    <h3>Recent Tasks</h3>
+                    <p>Take a look at your latest tasks.</p>
+                  </div>
+                  <button
+                    className="text-link"
+                    onClick={() => setPage("My Tasks")}
+                  >
+                    View all →
+                  </button>
+                </div>
+
+                <div className="recent-task-list">
+                  {tasks.slice(0, 5).map((task) => {
+                    const relatedProject = projects.find(
+                      (project) => project.id === task.projectId
+                    );
+
+                    return (
+                      <div className="recent-task-row" key={task.id}>
+                        <div
+                          className={`task-status-indicator ${
+                            task.status === "Completed"
+                              ? "indicator-completed"
+                              : task.status === "In Progress"
+                              ? "indicator-progress"
+                              : "indicator-todo"
+                          }`}
+                        ></div>
+
+                        <div className="recent-task-info">
+                          <strong>{task.title}</strong>
+                          <span>
+                            {relatedProject?.name || "Unknown project"}
+                          </span>
+                        </div>
+
+                        <span
+                          className={`priority-tag priority-${(
+                            task.priority || "medium"
+                          ).toLowerCase()}`}
+                        >
+                          {task.priority}
+                        </span>
+
+                        <span
+                          className={`task-status-tag ${
+                            task.status === "Completed"
+                              ? "tag-completed"
+                              : task.status === "In Progress"
+                              ? "tag-progress"
+                              : "tag-todo"
+                          }`}
+                        >
+                          {task.status}
+                        </span>
+
+                        <button
+                          className="task-edit-button"
+                          onClick={() => openEditTask(task)}
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  {tasks.length === 0 && (
+                    <div className="dashboard-empty">
+                      No tasks available yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {page === "Projects" && (
+            <section>
+              <div className="page-heading">
+                <div>
+                  <h1>My Projects</h1>
+                  <p>Manage and track all your projects.</p>
+                </div>
+                <button
+                  style={buttonStyle}
+                  onClick={() => setShowProjectForm(true)}
+                >
+                  + Create Project
+                </button>
+              </div>
+
+              <div className="projects-grid">
+                {projects.map((project) => {
+                  const relatedTasks = tasks.filter(
+                    (task) => task.projectId === project.id
+                  );
+
+                  const completed = relatedTasks.filter(
+                    (task) => task.status === "Completed"
+                  ).length;
+
+                  const progress = relatedTasks.length
+                    ? Math.round((completed / relatedTasks.length) * 100)
+                    : 0;
+
+                  return (
+                    <div key={project.id} className="project-card">
+                      <div className="project-card-top">
+                        <div className="project-symbol project-purple">
+                          {project.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="project-card-menu">•••</span>
+                      </div>
+
+                      <h3>{project.name}</h3>
+                      <p>{project.description}</p>
+
+                      <div className="project-card-meta">
+                        <span>Manager: {project.manager || "Not assigned"}</span>
+                        <span>Deadline: {project.deadline || "Not set"}</span>
+                      </div>
+
+                      <div className="project-card-progress">
+                        <div className="progress-caption">
+                          <span>Progress</span>
+                          <strong>{progress}%</strong>
+                        </div>
+                        <div className="progress-track">
+                          <div
+                            className="progress-fill"
+                            style={{ width: `${progress}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      <button
+                        className="project-card-button"
+                        onClick={() => openProject(project.id)}
+                      >
+                        View Project →
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {page === "Project Details" && activeProject && (
+            <section>
+              <button
+                style={{ ...buttonStyle, marginBottom: "20px" }}
+                onClick={() => setPage("Projects")}
+              >
+                ← Back to Projects
+              </button>
+
+              <div className="page-heading">
+                <div>
+                  <h1>{activeProject.name}</h1>
+                  <p>{activeProject.description}</p>
+                </div>
+                <button style={buttonStyle} onClick={openCreateTask}>
+                  + Add Task
+                </button>
+              </div>
+
+              <div className="project-details-meta">
+                <span>
+                  <strong>Manager:</strong>{" "}
+                  {activeProject.manager || "Not assigned"}
+                </span>
+                <span>
+                  <strong>Deadline:</strong>{" "}
+                  {activeProject.deadline || "Not set"}
+                </span>
+                <span>
+                  <strong>Total Tasks:</strong> {projectTasks.length}
+                </span>
+              </div>
+
+              <div className="kanban-board">
+                {statuses.map((status) => (
+                  <div className="kanban-column" key={status}>
+                    <div className="kanban-column-heading">
+                      <h3>{status}</h3>
+                      <span>
+                        {
+                          projectTasks.filter(
+                            (task) => task.status === status
+                          ).length
+                        }
+                      </span>
+                    </div>
+
+                    {projectTasks
+                      .filter((task) => task.status === status)
+                      .map((task) => (
+                        <div
+                          className="kanban-task-card"
+                          key={task.id}
+                          onClick={() => openEditTask(task)}
+                        >
+                          <div className="kanban-task-top">
+                            <span
+                              className={`priority-tag priority-${(
+                                task.priority || "medium"
+                              ).toLowerCase()}`}
+                            >
+                              {task.priority}
+                            </span>
+                            <span className="kanban-task-menu">•••</span>
+                          </div>
+
+                          <h4>{task.title}</h4>
+                          <p>{task.assignee || "Unassigned"}</p>
+                          <small>Due: {task.dueDate || "Not set"}</small>
+
+                          <select
+                            className="kanban-status-select"
+                            value={task.status}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) =>
+                              updateTaskStatus(task.id, e.target.value)
+                            }
+                          >
+                            {statuses.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+
+                    {projectTasks.filter(
+                      (task) => task.status === status
+                    ).length === 0 && (
+                      <div className="kanban-empty">No tasks here yet</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {page === "My Tasks" && (
+            <section>
+              <div className="page-heading">
+                <div>
+                  <h1>My Tasks</h1>
+                  <p>View, search and manage your tasks.</p>
+                </div>
+                <button style={buttonStyle} onClick={openCreateTask}>
+                  + Create Task
+                </button>
+              </div>
+
+              <div className="task-filters">
+                <input
+                  placeholder="Search tasks..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={inputStyle}
+                />
+
+                <select
+                  value={projectFilter}
+                  onChange={(e) => setProjectFilter(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="All">All Projects</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="All">All Statuses</option>
+                  {statuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="tasks-table-wrapper">
+                <table className="tasks-table">
+                  <thead>
+                    <tr>
+                      {[
+                        "Task",
+                        "Project",
+                        "Assignee",
+                        "Priority",
+                        "Due Date",
+                        "Status",
+                        "Action",
+                      ].map((heading) => (
+                        <th key={heading}>{heading}</th>
+                      ))}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {filteredTasks.map((task) => {
+                      const project = projects.find(
+                        (item) => item.id === task.projectId
+                      );
+
+                      return (
+                        <tr key={task.id}>
+                          <td>{task.title}</td>
+                          <td>{project?.name || "Unknown"}</td>
+                          <td>{task.assignee || "Unassigned"}</td>
+                          <td>{task.priority}</td>
+                          <td>{task.dueDate || "Not set"}</td>
+                          <td>{task.status}</td>
+                          <td>
+                            <button
+                              style={buttonStyle}
+                              onClick={() => openEditTask(task)}
+                            >
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {filteredTasks.length === 0 && (
+                      <tr>
+                        <td colSpan="7" className="empty-table">
+                          No tasks found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {showTaskForm && (
+            <div className="modal-overlay">
+              <form onSubmit={saveTask} className="modal">
+                <h2>{editingTask ? "Edit Task" : "Create Task"}</h2>
+
+                <label>Task Title</label>
+                <input
+                  style={inputStyle}
+                  value={taskForm.title}
+                  onChange={(e) =>
+                    setTaskForm({ ...taskForm, title: e.target.value })
+                  }
+                  required
+                />
+
+                <label>Project</label>
+                <select
+                  style={inputStyle}
+                  value={taskForm.projectId}
+                  onChange={(e) =>
+                    setTaskForm({ ...taskForm, projectId: e.target.value })
+                  }
+                >
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+
+                <label>Assignee</label>
+                <input
+                  style={inputStyle}
+                  value={taskForm.assignee}
+                  onChange={(e) =>
+                    setTaskForm({ ...taskForm, assignee: e.target.value })
+                  }
+                  placeholder="Enter assignee name"
+                />
+
+                <label>Status</label>
+                <select
+                  style={inputStyle}
+                  value={taskForm.status}
+                  onChange={(e) =>
+                    setTaskForm({ ...taskForm, status: e.target.value })
+                  }
+                >
+                  {statuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+
+                <label>Priority</label>
+                <select
+                  style={inputStyle}
+                  value={taskForm.priority}
+                  onChange={(e) =>
+                    setTaskForm({ ...taskForm, priority: e.target.value })
+                  }
+                >
+                  <option>Low</option>
+                  <option>Medium</option>
+                  <option>High</option>
+                </select>
+
+                <label>Due Date</label>
+                <input
+                  type="date"
+                  style={inputStyle}
+                  value={taskForm.dueDate}
+                  onChange={(e) =>
+                    setTaskForm({ ...taskForm, dueDate: e.target.value })
+                  }
+                />
+
+                <div className="modal-actions">
+                  <button type="submit" style={buttonStyle}>
+                    Save Task
+                  </button>
+
+                  {editingTask && (
+                    <button
+                      type="button"
+                      style={{ ...buttonStyle, background: "#dc3545" }}
+                      onClick={() => deleteTask(editingTask.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    style={{ ...buttonStyle, background: "#777" }}
+                    onClick={() => setShowTaskForm(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {showProjectForm && (
+            <div className="modal-overlay">
+              <form onSubmit={createProject} className="modal">
+                <h2>Create Project</h2>
+
+                <label>Project Name</label>
+                <input
+                  style={inputStyle}
+                  value={projectForm.name}
+                  onChange={(e) =>
+                    setProjectForm({ ...projectForm, name: e.target.value })
+                  }
+                  required
+                />
+
+                <label>Description</label>
+                <textarea
+                  style={inputStyle}
+                  value={projectForm.description}
+                  onChange={(e) =>
+                    setProjectForm({
+                      ...projectForm,
+                      description: e.target.value,
+                    })
+                  }
+                />
+
+                <label>Deadline</label>
+                <input
+                  type="date"
+                  style={inputStyle}
+                  value={projectForm.deadline}
+                  onChange={(e) =>
+                    setProjectForm({
+                      ...projectForm,
+                      deadline: e.target.value,
+                    })
+                  }
+                />
+
+                <label>Project Manager</label>
+                <input
+                  style={inputStyle}
+                  value={projectForm.manager}
+                  onChange={(e) =>
+                    setProjectForm({
+                      ...projectForm,
+                      manager: e.target.value,
+                    })
+                  }
+                />
+
+                <div className="modal-actions">
+                  <button type="submit" style={buttonStyle}>
+                    Create Project
+                  </button>
+
+                  <button
+                    type="button"
+                    style={{ ...buttonStyle, background: "#777" }}
+                    onClick={() => setShowProjectForm(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
 
-export default App;
+const inputStyle = {
+  display: "block",
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "11px",
+  border: "1px solid #ddd",
+  borderRadius: "7px",
+  margin: "8px 0 16px",
+  background: "white",
+};
+
+const cellStyle = {
+  padding: "12px",
+  textAlign: "left",
+  borderBottom: "1px solid #eee",
+};
+
+const overlayStyle = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(25, 20, 40, 0.5)",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  padding: "20px",
+  zIndex: 10,
+};
+
+const modalStyle = {
+  background: "white",
+  padding: "25px",
+  borderRadius: "14px",
+  width: "100%",
+  maxWidth: "480px",
+  maxHeight: "90vh",
+  overflowY: "auto",
+};
