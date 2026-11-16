@@ -20,12 +20,17 @@ function rowFor(user) {
     name: user.name,
     email: user.email,
     password_hash: user.password_hash,
+    token_version: user.token_version || 0,
     created_at: user.created_at,
     updated_at: user.updated_at,
   };
 }
 
 pool.query = async (query, values = []) => {
+  if (query === "SELECT 1") {
+    return { rows: [{ "?column?": 1 }] };
+  }
+
   if (query.startsWith("INSERT INTO users")) {
     const [name, email, passwordHash] = values;
     if (users.has(email)) {
@@ -40,6 +45,7 @@ pool.query = async (query, values = []) => {
       name,
       email,
       password_hash: passwordHash,
+      token_version: 0,
       created_at: now,
       updated_at: now,
     };
@@ -52,6 +58,12 @@ pool.query = async (query, values = []) => {
     return { rows: user ? [rowFor(user)] : [] };
   }
 
+  if (query.startsWith("UPDATE users SET token_version=token_version+1")) {
+    const user = [...users.values()].find((candidate) => candidate.id === values[0]);
+    if (user) user.token_version += 1;
+    return { rows: user ? [rowFor(user)] : [] };
+  }
+
   if (query.includes("WHERE id = $1")) {
     const user = [...users.values()].find((candidate) => candidate.id === values[0]);
     return { rows: user ? [rowFor(user)] : [] };
@@ -60,16 +72,21 @@ pool.query = async (query, values = []) => {
   throw new Error(`Unexpected test query: ${query}`);
 };
 
-async function request(path, { method = "GET", body, token } = {}) {
+async function request(path, { method = "GET", body, token, cookie } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers: {
       ...(body ? { "content-type": "application/json" } : {}),
       ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(cookie ? { cookie } : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
-  return { status: response.status, body: await response.json() };
+  return {
+    status: response.status,
+    body: response.status === 204 ? null : await response.json(),
+    headers: response.headers,
+  };
 }
 
 before(async () => {
@@ -150,7 +167,13 @@ test("logs in with valid credentials and returns a signed JWT", async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body.user.id, "1");
   assert.equal("password_hash" in response.body.user, false);
-  assert.equal(jwt.verify(response.body.token, process.env.JWT_SECRET).sub, "1");
+  assert.equal("token" in response.body, false);
+  const sessionCookie = response.headers.get("set-cookie");
+  assert.match(sessionCookie, /projectflow_session=/);
+  assert.match(sessionCookie, /HttpOnly/i);
+  assert.match(sessionCookie, /SameSite=Lax/i);
+  const token = sessionCookie.match(/projectflow_session=([^;]+)/)[1];
+  assert.equal(jwt.verify(token, process.env.JWT_SECRET).sub, "1");
 });
 
 test("rejects invalid login credentials with a generic error", async () => {
@@ -209,16 +232,47 @@ test("returns the authenticated user profile only", async () => {
   assert.equal("password_hash" in response.body.user, false);
 });
 
-test("handles a valid token for a user who no longer exists", async () => {
+test("authenticates using the HttpOnly session cookie and clears it on logout", async () => {
+  const login = await request("/api/auth/login", {
+    method: "POST",
+    body: { email: "test@example.com", password: "secure-pass-123" },
+  });
+  const cookie = login.headers.get("set-cookie").split(";")[0];
+  const profile = await request("/api/auth/me", { cookie });
+  const logout = await request("/api/auth/logout", { method: "POST", cookie });
+
+  assert.equal(profile.status, 200);
+  assert.equal(profile.body.user.id, "1");
+  assert.equal(logout.status, 200);
+  assert.equal((await request("/api/auth/me", { cookie })).status, 401);
+  assert.match(logout.headers.get("set-cookie"), /Expires=Thu, 01 Jan 1970/i);
+});
+
+test("reports liveness separately from PostgreSQL readiness", async () => {
+  const ready = await request("/api/ready");
+  const live = await request("/api/health");
+
+  assert.equal(live.status, 200);
+  assert.equal(ready.status, 200);
+  assert.equal(ready.body.message, "API and PostgreSQL are ready");
+});
+
+test("allows configured browser origins and credentials", async () => {
+  const response = await fetch(`${baseUrl}/api/health`, {
+    headers: { origin: "http://localhost:5173" },
+  });
+
+  assert.equal(response.headers.get("access-control-allow-origin"), "http://localhost:5173");
+  assert.equal(response.headers.get("access-control-allow-credentials"), "true");
+});
+
+test("rejects a token for a user who no longer exists", async () => {
   const token = jwt.sign({ sub: "999" }, process.env.JWT_SECRET, {
     expiresIn: "1h",
     algorithm: "HS256",
   });
   const response = await request("/api/auth/me", { token });
 
-  assert.equal(response.status, 404);
-  assert.deepEqual(response.body, {
-    success: false,
-    message: "User not found",
-  });
+  assert.equal(response.status, 401);
+  assert.equal(response.body.success, false);
 });

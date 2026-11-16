@@ -1,52 +1,37 @@
--- Useful Database Queries for Backend API Integration
+-- Queries for the canonical schema in migrations/001, 002, and 003.
 
--- 1. Get All Projects in a Specific Workspace
-SELECT 
-    p.project_id, 
-    p.name AS project_name, 
-    p.description, 
-    COUNT(t.task_id) AS total_tasks
+-- 1. Projects and task counts in a workspace.
+SELECT p.id, p.name, p.description, COUNT(t.id)::int AS task_count
 FROM projects p
-LEFT JOIN tasks t ON p.project_id = t.project_id
+LEFT JOIN tasks t ON t.project_id = p.id
 WHERE p.workspace_id = 1
-GROUP BY p.project_id;
+GROUP BY p.id
+ORDER BY p.created_at DESC;
 
--- 2. Fetch Tasks for a Project with Assigned User Info
-SELECT 
-    t.task_id, 
-    t.title, 
-    t.status, 
-    u.full_name AS assigned_user, 
-    u.email AS assigned_email
+-- 2. Tasks with project and assignee details.
+SELECT t.id, t.title, t.status, t.priority, p.name AS project_name,
+       u.name AS assignee_name, u.email AS assignee_email
 FROM tasks t
-LEFT JOIN users u ON t.assigned_to = u.user_id
+JOIN projects p ON p.id = t.project_id
+LEFT JOIN users u ON u.id = t.assignee_id
 WHERE t.project_id = 1
 ORDER BY t.created_at DESC;
 
--- 3. Calculate Task Status Counts for Project Dashboard Metrics
-SELECT 
-    status, 
-    COUNT(*) AS task_count
+-- 3. Task counts by status for a workspace.
+SELECT status, COUNT(*)::int AS task_count
 FROM tasks
-WHERE project_id = 1
+WHERE workspace_id = 1
 GROUP BY status;
 
--- 4. Get Task Comments with Author Details
-SELECT 
-    c.comment_id, 
-    c.comment_text, 
-    c.created_at, 
-    u.full_name AS author_name
+-- 4. Task comments with author details.
+SELECT c.id, c.body, c.created_at, u.name AS author_name
 FROM task_comments c
-JOIN users u ON c.user_id = u.user_id
+JOIN users u ON u.id = c.user_id
 WHERE c.task_id = 1
-ORDER BY c.created_at ASC;
+ORDER BY c.created_at;
 
--- 5. Fetch Unread Notifications for a User
-SELECT 
-    notification_id, 
-    message, 
-    created_at
+-- 5. Unread notifications for a workspace member.
+SELECT id, type, message, created_at
 FROM notifications
-WHERE user_id = 1 AND is_read = FALSE
+WHERE workspace_id = 1 AND user_id = 1 AND is_read = FALSE
 ORDER BY created_at DESC;

@@ -80,6 +80,30 @@ test("rejects placeholder secrets and invalid database or expiry settings", () =
   );
 });
 
+test("requires configured email delivery in production without exposing the API key", () => {
+  const apiKey = "sensitive-email-api-key";
+  assert.throws(() => validateEnvironment({
+    NODE_ENV: "production",
+    DATABASE_URL: "postgresql://user:password@localhost:5432/app",
+    JWT_SECRET: "a".repeat(32),
+    EMAIL_API_KEY: apiKey,
+    EMAIL_FROM: "",
+  }), (error) => {
+    assert.match(error.message, /EMAIL_API_KEY and EMAIL_FROM/);
+    assert.equal(error.message.includes(apiKey), false);
+    return true;
+  });
+});
+
+test("rejects partial email provider configuration", () => {
+  assert.throws(() => validateEnvironment({
+    DATABASE_URL: "postgresql://user:password@localhost:5432/app",
+    JWT_SECRET: "a".repeat(32),
+    EMAIL_API_KEY: "configured-key",
+    EMAIL_FROM: "",
+  }), /EMAIL_API_KEY and EMAIL_FROM must be configured together/);
+});
+
 test("requires a dedicated test database URL for manual connectivity checks", () => {
   withEnvironment(
     {

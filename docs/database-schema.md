@@ -1,51 +1,70 @@
 # Database schema
 
-## Current checkout: PostgreSQL users table
+## Source of truth
 
-The only checked-in SQL migration in the current
-`vishwajeeth-user-auth-security` branch is
-`database/migrations/001_create_users.sql`. It creates this table if missing:
+The PostgreSQL schema is defined by the migrations under
+`database/migrations/`, applied in filename order:
 
-| Column | SQL type | Constraints/default |
-|---|---|---|
-| `id` | `BIGINT` | Identity-generated, primary key, always generated. |
-| `name` | `VARCHAR(100)` | Not null. |
-| `email` | `VARCHAR(254)` | Not null, unique. |
-| `password_hash` | `VARCHAR(60)` | Not null; stores the bcrypt hash, not the password. |
-| `created_at` | `TIMESTAMPTZ` | Not null; defaults to `NOW()`. |
-| `updated_at` | `TIMESTAMPTZ` | Not null; defaults to `NOW()`. |
+1. `001_create_users.sql` creates `users` with identity `id`, `name`, unique
+   `email`, bcrypt `password_hash`, and timestamps.
+2. `002_create_workspace_domain.sql` creates workspaces, memberships,
+   invitations, projects, tasks, task comments, notifications, constraints,
+   and indexes.
+3. `003_expand_task_workflows.sql` adds task workflow values and dates,
+   subtasks, dependencies, activity history, milestones, labels, time entries,
+   and recurring task definitions.
+4. `004_teams_and_account_recovery.sql` adds workspace teams and team
+   membership, manager/employee role values, and single-use password reset tokens.
+5. `005_organizations_sessions.sql` adds organizations, organization members
+   and invitations, associates existing workspaces with organizations, and adds
+   token-version support for revocable sessions.
+6. `006_task_attachments.sql` adds organization/workspace/task-scoped attachment
+   metadata with uploader attribution and a private storage key.
+7. `007_time_reporting_recurring_rules.sql` adds time-reporting indexes and
+   recurrence configuration and occurrence-deduplication fields.
+8. `008_workload_analytics_notifications.sql` adds task estimate/completion
+   fields, deduplication keys, and per-workspace notification preferences.
 
-The migration also creates a unique index on `LOWER(email)`, ensuring
-case-insensitive uniqueness. Registration lowercases email before inserting
-it. The migration uses `CREATE ... IF NOT EXISTS`; it does not drop or reset
-existing data. It does not define a trigger to update `updated_at` on later
-row changes.
+From the repository root, apply the migrations to the intended database with:
 
-There are no foreign keys or other tables in this branch's migration set.
-Teams, team memberships, projects, tasks, comments, activity records, and
-notifications are planned domain areas, not existing tables in this schema.
+```powershell
+psql -U <db_user> -d <db_name> -f database/schema.sql
+```
 
-## Database access and test behavior
+`database/schema.sql` includes all versioned migrations using psql's `\ir`.
+The migration statements are additive and use `IF NOT EXISTS`; that does not
+repair a pre-existing table with incompatible columns. Inspect an existing
+database before applying them. Do not apply a legacy schema over user data.
 
-The API uses the `pg` connection pool. It accepts `DATABASE_URL`, or separate
-`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` settings. See
-[Architecture](architecture.md) for configuration validation.
+The Express pool uses `DATABASE_URL` when present, otherwise the individual
+`DB_*` settings. `database/db.js` reuses that same pool configuration.
 
-The backend auth tests replace the pool query method with an in-memory stub;
-they do not require PostgreSQL. The separate manual connectivity check in
-`backend/src/config/testDb.js` requires `TEST_DATABASE_URL` targeting a
-dedicated test-named database and runs a read-only query. This describes test
-design only; it does not report test execution results.
+## Relationships and domain values
 
-## Spring Boot `main` branch is separate
+- An organization has an owner and organization memberships. A workspace belongs
+  to one organization and retains its own membership and access checks.
+- Organization roles are `owner`, `admin`, `manager`, and `employee`; workspace
+  roles include the legacy `member` role plus `manager`, `employee`, and `viewer`.
+- Projects belong to workspaces and have status `in_progress`, `completed`,
+  or `archived`.
+- Tasks belong to a workspace and project, may be assigned to a user, and use
+  status `todo`, `in_progress`, or `completed` and priority `low`, `medium`,
+  or `high`.
+- Comments reference a task and author. Notifications are scoped to a
+  workspace and recipient.
+- Task attachment metadata records the organization, workspace, task, uploader,
+  original name, validated MIME type, size, and a non-public storage key.
+  Attachment bytes are kept in the configured private filesystem directory.
+- Foreign keys cascade workspace/project/task-owned data where appropriate.
 
-The `main` branch has a JPA `Project` entity with `id`, `name`,
-`description`, and `status` fields. Its `application.properties` enables
-Hibernate schema updates (`spring.jpa.hibernate.ddl-auto=update`). That entity
-is not defined by the current branch's SQL migrations, and it must not be
-assumed to exist alongside the Express users schema in a deployed database.
-The team should confirm which backend/schema branch is canonical before
-designing cross-branch migrations.
+See the SQL migrations for the complete column definitions and constraints.
+`database/queries.sql` contains examples using the canonical column names.
+`database/seed.sql` intentionally adds no default accounts or placeholder
+password hashes; register users through the API.
 
-Related references: [Architecture](architecture.md) and
-[API contracts](api-contracts.md).
+## Test database safety
+
+`backend/src/config/testDb.js` only accepts `TEST_DATABASE_URL` with a
+test-named database and rejects the configured application database and
+production-marked targets. The current unit tests stub database queries;
+live database tests must use this dedicated test URL.

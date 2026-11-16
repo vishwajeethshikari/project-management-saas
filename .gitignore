@@ -1,2 +1,13 @@
 node_modules/
-.env
+.env*
+**/.env*
+node_modules/
+**/node_modules/
+uploads/
+**/uploads/
+private-uploads/
+**/private-uploads/
+attachment-storage/
+**/attachment-storage/
+review-branches/
+/incoming-App.jsx

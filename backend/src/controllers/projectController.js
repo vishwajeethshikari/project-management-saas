@@ -1,6 +1,7 @@
 const pool = require("../config/db");
 const { projectCreateSchema, projectUpdateSchema } = require("../validators/domainValidator");
 const { validationError, apiError } = require("../utils/api");
+const { removeStoredAttachmentFiles } = require("./attachmentController");
 
 async function listProjects(req, res) {
   const { search = "", status } = req.query;
@@ -18,6 +19,12 @@ async function listProjects(req, res) {
 async function createProject(req, res) {
   const parsed = projectCreateSchema.safeParse(req.body);
   if (!parsed.success) return validationError(res, parsed.error);
+  if (parsed.data.ownerId != null) {
+    const member = await pool.query(
+      "SELECT 1 FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
+      [req.workspaceId, parsed.data.ownerId]);
+    if (!member.rows[0]) return apiError(res, 400, "Project owner must be a member of this workspace");
+  }
   const result = await pool.query(
     `INSERT INTO projects (workspace_id, name, description, status, owner_id, due_date)
      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
@@ -37,6 +44,12 @@ async function getProject(req, res) {
 async function updateProject(req, res) {
   const parsed = projectUpdateSchema.safeParse(req.body);
   if (!parsed.success) return validationError(res, parsed.error);
+  if (parsed.data.ownerId != null) {
+    const member = await pool.query(
+      "SELECT 1 FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
+      [req.workspaceId, parsed.data.ownerId]);
+    if (!member.rows[0]) return apiError(res, 400, "Project owner must be a member of this workspace");
+  }
   const result = await pool.query(
     `UPDATE projects SET name = COALESCE($1,name), description = COALESCE($2,description),
      status = COALESCE($3,status), owner_id = COALESCE($4,owner_id),
@@ -49,10 +62,16 @@ async function updateProject(req, res) {
 }
 
 async function deleteProject(req, res) {
+  const attachments = await pool.query(
+    `SELECT a.storage_key FROM task_attachments a
+     JOIN tasks t ON t.id=a.task_id AND t.workspace_id=a.workspace_id
+     WHERE t.project_id=$1 AND t.workspace_id=$2 AND a.organization_id=$3`,
+    [req.params.projectId, req.workspaceId, req.organizationId]);
   const result = await pool.query(
     `DELETE FROM projects WHERE id = $1 AND workspace_id = $2 RETURNING id`,
     [req.params.projectId, req.workspaceId]);
   if (!result.rows[0]) return apiError(res, 404, "Project not found");
+  await removeStoredAttachmentFiles(attachments.rows.map((attachment) => attachment.storage_key));
   res.status(204).send();
 }
 

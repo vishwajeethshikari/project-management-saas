@@ -51,6 +51,24 @@ function validateEnvironment(env = process.env) {
     );
   }
 
+  if (Boolean(env.EMAIL_API_KEY) !== Boolean(env.EMAIL_FROM)) {
+    errors.push("EMAIL_API_KEY and EMAIL_FROM must be configured together.");
+  }
+  if (env.NODE_ENV === "production" && (!env.EMAIL_API_KEY || !env.EMAIL_FROM)) {
+    errors.push("EMAIL_API_KEY and EMAIL_FROM are required in production for invitation and account recovery email.");
+  }
+
+  if (env.FRONTEND_URL) {
+    try {
+      const frontendUrl = new URL(env.FRONTEND_URL);
+      if (!["http:", "https:"].includes(frontendUrl.protocol) || !frontendUrl.hostname) {
+        errors.push("FRONTEND_URL must be a valid HTTP or HTTPS URL.");
+      }
+    } catch {
+      errors.push("FRONTEND_URL must be a valid HTTP or HTTPS URL.");
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error(`Invalid environment configuration:\n- ${errors.join("\n- ")}`);
   }

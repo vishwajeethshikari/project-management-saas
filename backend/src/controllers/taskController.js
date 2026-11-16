@@ -1,13 +1,17 @@
 const pool = require("../config/db");
-const { taskCreateSchema, taskUpdateSchema, commentSchema } = require("../validators/domainValidator");
+const { taskCreateSchema, taskUpdateSchema, taskListQuerySchema, commentSchema } = require("../validators/domainValidator");
 const { validationError, apiError } = require("../utils/api");
+const { removeStoredAttachmentFiles } = require("./attachmentController");
+const { createNotification } = require("./notificationController");
 
 async function listTasks(req, res) {
-  const { search = "", status, priority, assigneeId, sort = "created_at" } = req.query;
+  const parsed = taskListQuerySchema.safeParse(req.query);
+  if (!parsed.success) return validationError(res, parsed.error);
+  const { search, status, priority, assigneeId, sort } = parsed.data;
   const sortColumn = {
     created_at: "t.created_at",
     due_date: "t.due_date",
-    priority: "CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END",
+    priority: "CASE t.priority WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END",
     title: "t.title",
   }[sort] || "t.created_at";
   const result = await pool.query(
@@ -38,13 +42,34 @@ async function createTask(req, res) {
     "SELECT id FROM projects WHERE id = $1 AND workspace_id = $2",
     [parsed.data.projectId, req.workspaceId]);
   if (!project.rows[0]) return apiError(res, 404, "Project not found");
+  if (parsed.data.assigneeId != null) {
+    const assignee = await pool.query(
+      "SELECT 1 FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
+      [req.workspaceId, parsed.data.assigneeId]);
+    if (!assignee.rows[0]) return apiError(res, 400, "Assignee must be a member of this workspace");
+  }
   const result = await pool.query(
     `INSERT INTO tasks
-     (workspace_id, project_id, title, description, status, priority, assignee_id, due_date, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+     (workspace_id, project_id, title, description, status, priority, assignee_id, start_date, due_date, estimated_minutes, created_by, completed_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CASE WHEN $5='completed' THEN NOW() ELSE NULL END) RETURNING *`,
     [req.workspaceId, parsed.data.projectId, parsed.data.title, parsed.data.description || null,
      parsed.data.status, parsed.data.priority, parsed.data.assigneeId || null,
-     parsed.data.dueDate || null, req.user.id]);
+     parsed.data.startDate || null, parsed.data.dueDate || null, parsed.data.estimatedMinutes ?? null, req.user.id]);
+  if (result.rows[0].assignee_id != null) {
+    await createNotification({
+      workspaceId: req.workspaceId,
+      userId: result.rows[0].assignee_id,
+      type: "assignment",
+      message: `You were assigned to task "${result.rows[0].title}"`,
+      resourceType: "task",
+      resourceId: result.rows[0].id,
+      dedupeKey: `assignment:${result.rows[0].id}:${result.rows[0].assignee_id}:${result.rows[0].created_at.toISOString()}`,
+    });
+  }
+  await pool.query(
+    `INSERT INTO activity_logs(workspace_id,actor_id,resource_type,resource_id,action,details)
+     VALUES($1,$2,'task',$3,'created',$4::jsonb)`,
+    [req.workspaceId, req.user.id, result.rows[0].id, JSON.stringify({ title: result.rows[0].title })]);
   res.status(201).json({ success: true, task: result.rows[0] });
 }
 
@@ -59,23 +84,72 @@ async function getTask(req, res) {
 async function updateTask(req, res) {
   const parsed = taskUpdateSchema.safeParse(req.body);
   if (!parsed.success) return validationError(res, parsed.error);
+  const currentTask = await pool.query(
+    "SELECT id,assignee_id FROM tasks WHERE id=$1 AND workspace_id=$2",
+    [req.params.taskId, req.workspaceId]
+  );
+  if (!currentTask.rows[0]) return apiError(res, 404, "Task not found");
+  if (["member", "employee"].includes(req.workspaceRole)) {
+    if (String(currentTask.rows[0].assignee_id) !== String(req.user.id) || Object.keys(parsed.data).some((key) => key !== "status")) {
+      return apiError(res, 403, "Employees can change status on tasks assigned to them");
+    }
+  }
+  if (parsed.data.assigneeId != null) {
+    const assignee = await pool.query(
+      "SELECT 1 FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
+      [req.workspaceId, parsed.data.assigneeId]);
+    if (!assignee.rows[0]) return apiError(res, 400, "Assignee must be a member of this workspace");
+  }
+  const columns = {
+    title: "title", description: "description", status: "status", priority: "priority",
+    estimatedMinutes: "estimated_minutes", assigneeId: "assignee_id", startDate: "start_date", dueDate: "due_date",
+  };
+  const values = [];
+  const assignments = [];
+  for (const [field, column] of Object.entries(columns)) {
+    if (Object.hasOwn(parsed.data, field)) {
+      values.push(parsed.data[field]);
+      assignments.push(`${column}=$${values.length}`);
+    }
+  }
+  if (Object.hasOwn(parsed.data, "status")) {
+    values.push(parsed.data.status);
+    assignments.push(`completed_at=CASE WHEN $${values.length}='completed' THEN COALESCE(completed_at,NOW()) ELSE NULL END`);
+  }
+  if (assignments.length === 0) return apiError(res, 400, "Provide at least one task field to update");
+  values.push(req.params.taskId, req.workspaceId);
   const result = await pool.query(
-    `UPDATE tasks SET title=COALESCE($1,title), description=COALESCE($2,description),
-     status=COALESCE($3,status), priority=COALESCE($4,priority),
-     assignee_id=COALESCE($5,assignee_id), due_date=COALESCE($6,due_date), updated_at=NOW()
-     WHERE id=$7 AND workspace_id=$8 RETURNING *`,
-    [parsed.data.title ?? null, parsed.data.description ?? null, parsed.data.status ?? null,
-     parsed.data.priority ?? null, parsed.data.assigneeId ?? null, parsed.data.dueDate ?? null,
-     req.params.taskId, req.workspaceId]);
+    `UPDATE tasks SET ${assignments.join(", ")}, updated_at=NOW()
+     WHERE id=$${values.length - 1} AND workspace_id=$${values.length} RETURNING *`, values);
   if (!result.rows[0]) return apiError(res, 404, "Task not found");
+  if (result.rows[0].assignee_id != null && String(result.rows[0].assignee_id) !== String(currentTask.rows[0].assignee_id)) {
+    await createNotification({
+      workspaceId: req.workspaceId,
+      userId: result.rows[0].assignee_id,
+      type: "assignment",
+      message: `You were assigned to task "${result.rows[0].title}"`,
+      resourceType: "task",
+      resourceId: result.rows[0].id,
+      dedupeKey: `assignment:${result.rows[0].id}:${result.rows[0].assignee_id}:${result.rows[0].updated_at.toISOString()}`,
+    });
+  }
+  await pool.query(
+    `INSERT INTO activity_logs(workspace_id,actor_id,resource_type,resource_id,action,details)
+     VALUES($1,$2,'task',$3,'updated',$4::jsonb)`,
+    [req.workspaceId, req.user.id, result.rows[0].id, JSON.stringify({ fields: Object.keys(parsed.data) })]);
   res.json({ success: true, task: result.rows[0] });
 }
 
 async function deleteTask(req, res) {
+  const attachments = await pool.query(
+    `SELECT storage_key FROM task_attachments
+     WHERE task_id=$1 AND workspace_id=$2 AND organization_id=$3`,
+    [req.params.taskId, req.workspaceId, req.organizationId]);
   const result = await pool.query(
     "DELETE FROM tasks WHERE id=$1 AND workspace_id=$2 RETURNING id",
     [req.params.taskId, req.workspaceId]);
   if (!result.rows[0]) return apiError(res, 404, "Task not found");
+  await removeStoredAttachmentFiles(attachments.rows.map((attachment) => attachment.storage_key));
   res.status(204).send();
 }
 
@@ -97,6 +171,28 @@ async function createComment(req, res) {
     `INSERT INTO task_comments (workspace_id, task_id, user_id, body)
      VALUES ($1,$2,$3,$4) RETURNING *`,
     [req.workspaceId, req.params.taskId, req.user.id, parsed.data.body]);
+  const author = await pool.query("SELECT name FROM users WHERE id=$1", [req.user.id]);
+  await pool.query(
+    `INSERT INTO activity_logs(workspace_id,actor_id,resource_type,resource_id,action,details)
+     VALUES($1,$2,'task',$3,'commented',$4::jsonb)`,
+    [req.workspaceId, req.user.id, req.params.taskId, JSON.stringify({ commentId: result.rows[0].id })]);
+  const emails = [...parsed.data.body.matchAll(/(?:^|\s)@([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi)]
+    .map((match) => match[1].toLowerCase());
+  if (emails.length) {
+    const mentioned = await pool.query(
+      `SELECT wm.user_id FROM workspace_members wm JOIN users u ON u.id=wm.user_id
+       WHERE wm.workspace_id=$1 AND LOWER(u.email)=ANY($2::text[]) AND wm.user_id<>$3`,
+      [req.workspaceId, [...new Set(emails)], req.user.id]);
+    for (const member of mentioned.rows) await createNotification({
+      workspaceId: req.workspaceId,
+      userId: member.user_id,
+      type: "mention",
+      message: `${author.rows[0]?.name || "A teammate"} mentioned you in a task comment`,
+      resourceType: "comment",
+      resourceId: result.rows[0].id,
+      dedupeKey: `mention:${result.rows[0].id}:${member.user_id}`,
+    });
+  }
   res.status(201).json({ success: true, comment: result.rows[0] });
 }
 

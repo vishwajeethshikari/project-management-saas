@@ -1,10 +1,11 @@
 const jwt = require("jsonwebtoken");
+const { getRequestToken } = require("../utils/authCookie");
+const pool = require("../config/db");
 
-function authenticateToken(req, res, next) {
-  const authorization = req.get("authorization");
-  const match = authorization && authorization.match(/^Bearer\s+(\S+)$/i);
+async function authenticateToken(req, res, next) {
+  const token = getRequestToken(req);
 
-  if (!match) {
+  if (!token) {
     return res.status(401).json({
       success: false,
       message: "Authentication token is required",
@@ -19,7 +20,7 @@ function authenticateToken(req, res, next) {
   }
 
   try {
-    const payload = jwt.verify(match[1], process.env.JWT_SECRET, {
+    const payload = jwt.verify(token, process.env.JWT_SECRET, {
       algorithms: ["HS256"],
     });
     if (typeof payload === "string" || typeof payload.sub !== "string") {
@@ -29,6 +30,10 @@ function authenticateToken(req, res, next) {
       });
     }
 
+    const user = await pool.query("SELECT token_version FROM users WHERE id = $1", [payload.sub]);
+    if (!user.rows[0] || Number(user.rows[0].token_version || 0) !== Number(payload.ver || 0)) {
+      return res.status(401).json({ success: false, message: "Invalid or revoked authentication token" });
+    }
     req.user = { id: payload.sub };
     return next();
   } catch (error) {

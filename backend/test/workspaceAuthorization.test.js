@@ -36,3 +36,21 @@ test("workspace authorization rejects viewer from member actions", async () => {
   assert.equal(response.code, 403);
   assert.equal(response.body.success, false);
 });
+
+test("workspace authorization lets managers manage teams and blocks employees", async () => {
+  const originalQuery = pool.query;
+  const responseFor = async (role) => {
+    pool.query = async () => ({ rows: [{ role }] });
+    const middleware = requireWorkspaceMember({ role: "manager" });
+    return new Promise((resolve) => middleware(
+      { params: { workspaceId: "12" }, user: { id: "7" } },
+      { status(code) { return { json(body) { resolve({ code, body }); } }; } },
+      () => resolve({ next: true })
+    ));
+  };
+  const manager = await responseFor("manager");
+  const employee = await responseFor("employee");
+  pool.query = originalQuery;
+  assert.deepEqual(manager, { next: true });
+  assert.equal(employee.code, 403);
+});

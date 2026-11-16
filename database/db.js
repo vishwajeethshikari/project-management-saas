@@ -1,18 +1,11 @@
-require('dotenv').config();
-const { Pool } = require('pg');
+const path = require("node:path");
+const { createRequire } = require("node:module");
+const backendRequire = createRequire(
+  path.resolve(__dirname, "../backend/package.json")
+);
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME || 'project_saas_db',
+backendRequire("dotenv").config({
+  path: path.resolve(__dirname, "../backend/.env"),
 });
 
-pool.on('connect', () => {
-  console.log('Connected to PostgreSQL database successfully.');
-});
-
-module.exports = {
-  query: (text, params) => pool.query(text, params),
-};
+module.exports = backendRequire("./src/config/db");

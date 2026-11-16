@@ -1,5 +1,6 @@
 const pool = require("../config/db");
 const { apiError } = require("../utils/api");
+const notifications = require("./notificationController");
 
 async function dashboard(req, res) {
   const result = await pool.query(
@@ -31,4 +32,23 @@ async function markNotification(req, res) {
   res.json({ success: true, notification: result.rows[0] });
 }
 
-module.exports = { dashboard, listNotifications, markNotification };
+async function listActivity(req, res) {
+  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 100);
+  const result = await pool.query(
+    `SELECT a.id,a.resource_type,a.resource_id,a.action,a.details,a.created_at,
+            u.id AS actor_id,u.name AS actor_name
+     FROM activity_logs a LEFT JOIN users u ON u.id=a.actor_id
+     WHERE a.workspace_id=$1
+     ORDER BY a.created_at DESC,a.id DESC LIMIT $2`,
+    [req.workspaceId, limit]);
+  res.json({ success: true, activity: result.rows });
+}
+
+module.exports = {
+  dashboard,
+  getNotificationPreferences: notifications.getPreferences,
+  listNotifications,
+  markNotification,
+  listActivity,
+  updateNotificationPreferences: notifications.updatePreferences,
+};
