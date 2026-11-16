@@ -7,7 +7,7 @@ const {
 } = require("../validators/domainValidator");
 const { apiError, validationError } = require("../utils/api");
 
-const managerRoles = new Set(["owner", "admin", "manager"]);
+const { isManagerOrHigher } = require("../security/roles");
 const durationExpression = "COALESCE(duration_seconds, FLOOR(EXTRACT(EPOCH FROM (COALESCE(ended_at,NOW()) - started_at)))::integer)";
 
 async function listActiveTimers(req, res) {
@@ -80,7 +80,7 @@ async function stopTimer(req, res) {
     }
     if (
       String(entry.rows[0].user_id) !== String(req.user.id) &&
-      !managerRoles.has(req.workspaceRole)
+      !isManagerOrHigher(req.workspaceRole)
     ) {
       await client.query("ROLLBACK");
       return apiError(res, 403, "You cannot stop this timer");
@@ -138,7 +138,9 @@ async function listTaskTime(req, res) {
   if (!task.rows[0]) return apiError(res, 404, "Task not found");
   const [entries, summary] = await Promise.all([
     pool.query(
-      `SELECT e.*,u.name AS user_name FROM time_entries e JOIN users u ON u.id=e.user_id
+      `SELECT e.*,u.name AS user_name FROM time_entries e
+       LEFT JOIN workspace_members entry_member ON entry_member.workspace_id=e.workspace_id AND entry_member.user_id=e.user_id
+       LEFT JOIN users u ON u.id=entry_member.user_id
        WHERE e.workspace_id=$1 AND e.task_id=$2 ORDER BY e.started_at DESC,e.id DESC`,
       [req.workspaceId, req.params.taskId]
     ),
@@ -163,7 +165,7 @@ async function updateEntry(req, res) {
   if (!entry.rows[0]) return apiError(res, 404, "Time entry not found");
   if (
     String(entry.rows[0].user_id) !== String(req.user.id) &&
-    !managerRoles.has(req.workspaceRole)
+    !isManagerOrHigher(req.workspaceRole)
   ) return apiError(res, 403, "You cannot edit this time entry");
   if (!entry.rows[0].ended_at) return apiError(res, 409, "Stop the timer before editing its entry");
 
@@ -191,7 +193,7 @@ async function deleteEntry(req, res) {
   if (!entry.rows[0]) return apiError(res, 404, "Time entry not found");
   if (
     String(entry.rows[0].user_id) !== String(req.user.id) &&
-    !managerRoles.has(req.workspaceRole)
+    !isManagerOrHigher(req.workspaceRole)
   ) return apiError(res, 403, "You cannot delete this time entry");
   if (!entry.rows[0].ended_at) return apiError(res, 409, "Stop the timer before deleting its entry");
   await pool.query("DELETE FROM time_entries WHERE id=$1 AND workspace_id=$2 AND task_id=$3", [req.params.entryId, req.workspaceId, req.params.taskId]);

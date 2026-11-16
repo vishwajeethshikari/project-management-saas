@@ -1,6 +1,5 @@
 const pool = require("../config/db");
-
-const roleRank = { viewer: 1, member: 2, employee: 2, manager: 3, admin: 4, owner: 5 };
+const { hasMinimumRole } = require("../security/roles");
 
 module.exports = function requireWorkspaceMember(options = {}) {
   const minimumRole = options.role;
@@ -23,7 +22,7 @@ module.exports = function requireWorkspaceMember(options = {}) {
         return res.status(404).json({ success: false, message: "Workspace not found" });
       }
 
-      if (minimumRole && (roleRank[result.rows[0].role] || 0) < (roleRank[minimumRole] || 0)) {
+      if (minimumRole && !hasMinimumRole(result.rows[0].role, minimumRole)) {
         return res.status(403).json({ success: false, message: "Insufficient workspace permission" });
       }
 

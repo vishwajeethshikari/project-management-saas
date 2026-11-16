@@ -3,6 +3,7 @@ const { taskCreateSchema, taskUpdateSchema, taskListQuerySchema, commentSchema }
 const { validationError, apiError } = require("../utils/api");
 const { removeStoredAttachmentFiles } = require("./attachmentController");
 const { createNotification } = require("./notificationController");
+const { hasMinimumRole } = require("../security/roles");
 
 async function listTasks(req, res) {
   const parsed = taskListQuerySchema.safeParse(req.query);
@@ -14,10 +15,13 @@ async function listTasks(req, res) {
     priority: "CASE t.priority WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END",
     title: "t.title",
   }[sort] || "t.created_at";
+  const project = await pool.query("SELECT id FROM projects WHERE id=$1 AND workspace_id=$2", [req.params.projectId, req.workspaceId]);
+  if (!project.rows[0]) return apiError(res, 404, "Project not found");
   const result = await pool.query(
     `SELECT t.*, p.name AS project_name, u.name AS assignee_name
-     FROM tasks t JOIN projects p ON p.id = t.project_id
-     LEFT JOIN users u ON u.id = t.assignee_id
+     FROM tasks t JOIN projects p ON p.id = t.project_id AND p.workspace_id=t.workspace_id
+     LEFT JOIN workspace_members assignee_member ON assignee_member.workspace_id=t.workspace_id AND assignee_member.user_id=t.assignee_id
+     LEFT JOIN users u ON u.id = assignee_member.user_id
      WHERE t.workspace_id = $1 AND t.project_id = $2
        AND ($3 = '' OR t.title ILIKE '%' || $3 || '%' OR COALESCE(t.description, '') ILIKE '%' || $3 || '%')
        AND ($4::text IS NULL OR t.status = $4)
@@ -89,7 +93,7 @@ async function updateTask(req, res) {
     [req.params.taskId, req.workspaceId]
   );
   if (!currentTask.rows[0]) return apiError(res, 404, "Task not found");
-  if (["member", "employee"].includes(req.workspaceRole)) {
+  if (!hasMinimumRole(req.workspaceRole, "manager")) {
     if (String(currentTask.rows[0].assignee_id) !== String(req.user.id) || Object.keys(parsed.data).some((key) => key !== "status")) {
       return apiError(res, 403, "Employees can change status on tasks assigned to them");
     }
@@ -154,8 +158,10 @@ async function deleteTask(req, res) {
 }
 
 async function listComments(req, res) {
+  const task = await pool.query("SELECT id FROM tasks WHERE id=$1 AND workspace_id=$2", [req.params.taskId, req.workspaceId]);
+  if (!task.rows[0]) return apiError(res, 404, "Task not found");
   const result = await pool.query(
-    `SELECT c.*, u.name AS author_name FROM task_comments c JOIN users u ON u.id=c.user_id
+    `SELECT c.*, u.name AS author_name FROM task_comments c LEFT JOIN workspace_members author_member ON author_member.workspace_id=c.workspace_id AND author_member.user_id=c.user_id LEFT JOIN users u ON u.id=author_member.user_id
      WHERE c.task_id=$1 AND c.workspace_id=$2 ORDER BY c.created_at`,
     [req.params.taskId, req.workspaceId]);
   res.json({ success: true, comments: result.rows });

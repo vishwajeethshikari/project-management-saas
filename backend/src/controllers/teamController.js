@@ -1,11 +1,14 @@
 const pool = require("../config/db");
 const { teamSchema, teamMemberSchema } = require("../validators/domainValidator");
 const { validationError, apiError } = require("../utils/api");
+const { isManagerOrHigher } = require("../security/roles");
 
 async function listTeams(req, res) {
   const result = await pool.query(
     `SELECT t.*, u.name AS manager_name, COUNT(tm.user_id)::int AS member_count
-     FROM teams t LEFT JOIN users u ON u.id=t.manager_id
+     FROM teams t
+     LEFT JOIN workspace_members manager_member ON manager_member.workspace_id=t.workspace_id AND manager_member.user_id=t.manager_id
+     LEFT JOIN users u ON u.id=manager_member.user_id
      LEFT JOIN team_members tm ON tm.team_id=t.id AND tm.workspace_id=t.workspace_id
      WHERE t.workspace_id=$1 GROUP BY t.id,u.name ORDER BY t.name`, [req.workspaceId]);
   res.json({ success: true, teams: result.rows });
@@ -21,8 +24,8 @@ async function createTeam(req, res) {
   const parsed = teamSchema.safeParse(req.body);
   if (!parsed.success) return validationError(res, parsed.error);
   if (parsed.data.managerId != null) {
-    const member = await pool.query("SELECT 1 FROM workspace_members WHERE workspace_id=$1 AND user_id=$2 AND role IN ('owner','admin','manager')", [req.workspaceId, parsed.data.managerId]);
-    if (!member.rows[0]) return apiError(res, 400, "Team manager must be an owner, admin, or manager in this workspace");
+    const member = await pool.query("SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2", [req.workspaceId, parsed.data.managerId]);
+    if (!member.rows[0] || !isManagerOrHigher(member.rows[0].role)) return apiError(res, 400, "Team manager must be an owner, admin, or manager in this workspace");
   }
   const client = await pool.connect();
   try {
@@ -50,8 +53,8 @@ async function updateTeam(req, res) {
   const parsed = teamSchema.partial().safeParse(req.body);
   if (!parsed.success) return validationError(res, parsed.error);
   if (parsed.data.managerId != null) {
-    const member = await pool.query("SELECT 1 FROM workspace_members WHERE workspace_id=$1 AND user_id=$2 AND role IN ('owner','admin','manager')", [req.workspaceId, parsed.data.managerId]);
-    if (!member.rows[0]) return apiError(res, 400, "Team manager must be an owner, admin, or manager in this workspace");
+    const member = await pool.query("SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2", [req.workspaceId, parsed.data.managerId]);
+    if (!member.rows[0] || !isManagerOrHigher(member.rows[0].role)) return apiError(res, 400, "Team manager must be an owner, admin, or manager in this workspace");
   }
   const columns = { name: "name", description: "description", managerId: "manager_id" };
   const values = [];

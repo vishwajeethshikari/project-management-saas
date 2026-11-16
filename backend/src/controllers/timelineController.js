@@ -13,7 +13,9 @@ async function getTimeline(req, res) {
       `SELECT t.*,u.name AS assignee_name,
        COALESCE(json_agg(json_build_object('id',b.id,'title',b.title))
          FILTER (WHERE b.id IS NOT NULL),'[]'::json) AS blockers
-       FROM tasks t LEFT JOIN users u ON u.id=t.assignee_id
+       FROM tasks t
+       LEFT JOIN workspace_members assignee_member ON assignee_member.workspace_id=t.workspace_id AND assignee_member.user_id=t.assignee_id
+       LEFT JOIN users u ON u.id=assignee_member.user_id
        LEFT JOIN task_dependencies d ON d.workspace_id=t.workspace_id AND d.task_id=t.id
        LEFT JOIN tasks b ON b.id=d.depends_on_task_id AND b.workspace_id=d.workspace_id
        WHERE t.workspace_id=$1 AND t.project_id=$2

@@ -5,6 +5,10 @@ const { validationError, apiError } = require("../utils/api");
 const { sendEmail } = require("../services/emailService");
 const { removeStoredAttachmentFiles } = require("./attachmentController");
 
+function organizationRoleToWorkspaceRole(role) {
+  return role === "employee" ? "employee" : role;
+}
+
 async function listWorkspaces(req, res) {
   const result = await pool.query(
     `SELECT w.id,w.name,w.description,w.owner_id,w.organization_id,w.created_at,w.updated_at,
@@ -23,15 +27,17 @@ async function createWorkspace(req, res) {
   try {
     await client.query("BEGIN");
     let organizationId = parsed.data.organizationId;
+    let creatorRole = "owner";
     if (organizationId) {
       const organization = await client.query(
-        `SELECT organization_id FROM organization_members
+        `SELECT organization_id,role FROM organization_members
          WHERE organization_id=$1 AND user_id=$2 AND role IN ('owner','admin','manager')`,
         [organizationId, req.user.id]);
       if (!organization.rows[0]) {
         await client.query("ROLLBACK");
         return apiError(res, 403, "You cannot create a workspace in this organization");
       }
+      creatorRole = organization.rows[0].role;
     } else {
       const organization = await client.query(
         "INSERT INTO organizations(name,owner_id) VALUES($1,$2) RETURNING id",
@@ -41,14 +47,18 @@ async function createWorkspace(req, res) {
         "INSERT INTO organization_members(organization_id,user_id,role) VALUES($1,$2,'owner')",
         [organizationId, req.user.id]);
     }
+    await client.query(
+      `INSERT INTO organization_members(organization_id,user_id,role) VALUES($1,$2,$3)
+       ON CONFLICT(organization_id,user_id) DO NOTHING`,
+      [organizationId, req.user.id, creatorRole]);
     const workspace = await client.query(
       `INSERT INTO workspaces(name,description,owner_id,organization_id)
        VALUES($1,$2,$3,$4) RETURNING *`,
       [parsed.data.name, parsed.data.description || null, req.user.id, organizationId]);
     await client.query(
       `INSERT INTO workspace_members (workspace_id, user_id, role)
-       VALUES ($1, $2, 'owner')`,
-      [workspace.rows[0].id, req.user.id]);
+       VALUES ($1, $2, $3)`,
+      [workspace.rows[0].id, req.user.id, organizationRoleToWorkspaceRole(creatorRole)]);
     await client.query("COMMIT");
     res.status(201).json({ success: true, workspace: workspace.rows[0] });
   } catch (error) {
@@ -123,7 +133,7 @@ async function inviteMember(req, res) {
     });
     if (sent.delivered) delivery = "email";
   } catch (error) {
-    await pool.query("UPDATE workspace_invitations SET status='revoked' WHERE id=$1", [result.rows[0].id]);
+    await pool.query("UPDATE workspace_invitations SET status='revoked' WHERE id=$1 AND workspace_id=$2", [result.rows[0].id, req.workspaceId]);
     throw error;
   }
   res.status(201).json({ success: true, invitation: result.rows[0], inviteUrl, delivery });
@@ -154,11 +164,12 @@ async function acceptInvitation(req, res) {
       `INSERT INTO workspace_members(workspace_id,user_id,role) VALUES($1,$2,$3)
        ON CONFLICT(workspace_id,user_id) DO NOTHING`,
       [invitation.rows[0].workspace_id, req.user.id, invitation.rows[0].role]);
+    const organizationRole = invitation.rows[0].role === "member" ? "employee" : invitation.rows[0].role;
     await client.query(
-      `INSERT INTO organization_members(organization_id,user_id,role) VALUES($1,$2,'employee')
+      `INSERT INTO organization_members(organization_id,user_id,role) VALUES($1,$2,$3)
        ON CONFLICT(organization_id,user_id) DO NOTHING`,
-      [invitation.rows[0].organization_id, req.user.id]);
-    await client.query("UPDATE workspace_invitations SET status='accepted' WHERE id=$1", [invitation.rows[0].id]);
+      [invitation.rows[0].organization_id, req.user.id, organizationRole]);
+    await client.query("UPDATE workspace_invitations SET status='accepted' WHERE id=$1 AND workspace_id=$2", [invitation.rows[0].id, invitation.rows[0].workspace_id]);
     await client.query("COMMIT");
     return res.status(200).json({ success: true, workspaceId: invitation.rows[0].workspace_id });
   } catch (error) {

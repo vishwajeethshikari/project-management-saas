@@ -50,6 +50,7 @@ test(
         "006_task_attachments.sql",
         "007_time_reporting_recurring_rules.sql",
         "008_workload_analytics_notifications.sql",
+        "009_backfill_organization_memberships.sql",
       ]) {
         const sql = await readFile(
           join(__dirname, "../../database/migrations", migration),
@@ -156,6 +157,14 @@ test(
       assert.equal(createdWorkspace.status, 201);
       workspaceId = createdWorkspace.body.workspace.id;
       organizationId = createdWorkspace.body.workspace.organization_id;
+      const creatorMemberships = await setupPool.query(
+        `SELECT wm.role AS workspace_role,om.role AS organization_role
+         FROM workspace_members wm JOIN workspaces w ON w.id=wm.workspace_id
+         JOIN organization_members om ON om.organization_id=w.organization_id AND om.user_id=wm.user_id
+         WHERE wm.workspace_id=$1 AND wm.user_id=$2`,
+        [workspaceId, userId]
+      );
+      assert.deepEqual(creatorMemberships.rows[0], { workspace_role: "owner", organization_role: "owner" });
       const organizationList = await request("/api/organizations");
       assert.equal(organizationList.status, 200);
       assert.equal(organizationList.body.organizations.length, 1);
@@ -216,6 +225,8 @@ test(
       assert.equal((await request(`/api/workspaces/${workspaceId}`, { authCookie: outsiderCookie })).status, 200);
       const outsiderMembership = await setupPool.query("SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2", [workspaceId, outsiderUserId]);
       assert.equal(outsiderMembership.rows[0].role, "employee");
+      const outsiderOrganizationMembership = await setupPool.query("SELECT role FROM organization_members WHERE organization_id=$1 AND user_id=$2", [organizationId, outsiderUserId]);
+      assert.equal(outsiderOrganizationMembership.rows[0].role, "employee");
       assert.equal((await request(`/api/workspaces/${workspaceId}`)).status, 200);
       assert.equal((await request(`/api/workspaces/${workspaceId}`, {
         method: "PATCH",
@@ -474,7 +485,7 @@ test(
       assert.equal((await request(`/api/organizations/${organizationId}/members/${outsiderUserId}`, {
         method: "DELETE",
       })).status, 204);
-      assert.equal((await request(`/api/workspaces/${workspaceId}`, { authCookie: outsiderCookie })).status, 404);
+      assert.equal((await request(`/api/workspaces/${workspaceId}`, { authCookie: outsiderCookie })).status, 401);
 
       assert.equal((await request(`${attachmentRoute}/${attachmentId}`, { method: "DELETE" })).status, 204);
       assert.equal((await request(`${attachmentRoute}/${attachmentId}/download`)).status, 404);

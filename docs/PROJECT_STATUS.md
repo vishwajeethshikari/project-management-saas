@@ -23,9 +23,9 @@ These are audit estimates, not test-coverage or runtime claims.
 ### Ten highest-priority findings
 
 1. **Attachment schema was missing on the live database.** Migration 006 was applied and catalog checks now show the table, ten columns, and index. Name-level migration comparison passes; `CREATE TABLE IF NOT EXISTS` still does not repair incompatible pre-existing columns.
-2. **Workspace access depends on an organization membership join.** `requireWorkspaceMember` joins `organization_members` (backend/src/middleware/requireWorkspaceMember.js). The live check found zero orphan rows, but `workspace_members` currently has no rows, so populated membership behavior remains unverified.
-3. **Role semantics are inconsistent.** Organization and workspace roles use different rank maps and route minimums. `member` is not an organization role; workspace membership status is not enough to confirm org-role propagation or workspace membership synchronization.
-4. **Several IDs are not passed through `validateIds`.** Workspace IDs are checked in membership middleware; many nested controller IDs (e.g. project IDs in task list are validated, but task IDs only in some routes; organization IDs are validated in membership middleware) need route-by-route validation. Invalid IDs may become DB errors.
+2. **Workspace access depends on paired memberships.** `requireWorkspaceMember` checks both membership tables. Migration 009 backfills legacy gaps idempotently; workspace creation and invitation acceptance now write both rows in one transaction.
+3. **Role policy is centralized and documented.** Organization and workspace middleware use `backend/src/security/roles.js`; product-role mapping and endpoint actions are recorded in `docs/ROLES.md`.
+4. **Route IDs are validated before controller queries.** Every route parameter in the organization, workspace, team, project, task, comment, subtask, dependency, attachment, time-entry, recurring-task, notification, and milestone routes uses `validateIds`; invalid numeric IDs return 400.
 5. **A pre-existing environment template remains modified.** It was intentionally excluded from the snapshot commit; all other audited work was preserved on the safety branch and current feature branch.
 6. **No `helmet`, rate limiter, or explicit XSS sanitization is installed.** Input validation exists in places via Zod, but not all request surfaces are proven validated. CORS uses an allowlist defaulting to local Vite origins.
 7. **No change-password endpoint or credential re-authentication path exists.** Profile update changes only the name; forgot/reset is implemented.
@@ -237,10 +237,10 @@ The original status table records the source-review assessment. Runtime verifica
 
 ### d) Authentication/authorization/isolation
 
-- `requireWorkspaceMember` joins `workspace_members`, `workspaces`, and `organization_members`; mismatch/missing org membership blocks an otherwise valid workspace member.
-- Route role thresholds use `roleRank` in workspace middleware and a separate `rank` map in organization middleware. Review policy consistency (e.g. whether `admin` outranks manager for every action, and owner/admin semantics).
-- `validateIds` is applied selectively. Controllers should independently bind nested IDs to `req.workspaceId` and verify assignee/member ownership.
-- Query parameters are generally parameterized in reviewed SQL; no observed obvious concatenation of raw request strings into SQL values.
+- Phase D uses the shared role rank and action policy in `docs/ROLES.md`. Workspace access still requires both workspace and organization membership, and migration 009 repairs legacy gaps.
+- All route parameters in the listed organization and workspace resource routes are validated as positive numeric IDs. Nested resource queries and joins are bound to `req.workspaceId`; user assignments, team managers, team members, and comment mentions are checked against workspace membership.
+- The integration isolation matrix covers cross-organization reads, writes, deletes, lists, analytics, exports, downloads, and notifications; employee/manager permissions; invalid IDs; assignment boundaries; and token revocation after member removal.
+- Remaining deployment hardening (rate limiting, secure headers, explicit XSS/CSRF strategy) is tracked separately and was not part of Phase D.
 
 ### e) Security
 
@@ -272,14 +272,14 @@ The original status table records the source-review assessment. Runtime verifica
 
 1. **Preserve/review current worktree and establish clean baseline** (Small): **complete**; safety snapshot branch and feature-branch snapshot commit created.
 2. **Verify live database safely** (Medium): **complete for inventory**; read-only catalog/count check done, migration 006 applied after backup confirmation, and schema rechecked.
-3. **Harden authorization boundaries** (Large): normalize role policy, workspace/org membership expectations, validate all nested IDs, verify assignee/project/team membership and resource scoping with automated tests.
+3. **Harden authorization boundaries** (Large): **Phase D complete**; shared role rank, role matrix, paired memberships, route ID validation, scoped queries, and guarded test-DB isolation coverage are implemented. Broader production security hardening remains open.
 4. **Add operational protections** (Medium): request size limits, rate limits, secure headers, XSS strategy, CSRF/deployment review, upload storage/cleanup checks.
 5. **Complete core account flows** (Medium): registration/login/logout smoke path complete; change password, session/device controls if required, additional profile fields, and recovery email remain.
 6. **Complete core collaboration model** (Large): project membership/manager assignments; label API; mentions and notification triggers; ensure activity coverage.
 7. **Stabilize projects/tasks** (Large): exact status/priority values, assignment constraints, progress formula, search/filter/sort, persisted board interactions and keyboard equivalent.
 8. **Validate secondary workflows** (Medium): attachment HTTP path verified; calendar dates/timezones, dependencies, recurring jobs, timers and notification dedupe still need DB-backed tests.
 9. **Complete reporting and product navigation** (Large): dedicated My Work/admin reports/settings/global search; charts and exports with documented formulas; PDF only if needed.
-10. **Run verification gates** (Medium): backend/frontend tests, integration tests on a dedicated test DB, build/lint all passed; browser-based UI smoke test remains.
+10. **Run verification gates** (Medium): Phase D backend/frontend checks and guarded isolation integration tests are recorded in section 11; browser-based UI smoke test remains.
 
 ## 9. Not verified after Phase C
 
@@ -336,3 +336,29 @@ The smoke account used the `@smoketest.local` suffix. Its attachment, task, proj
 - Standalone backend integration command: 1 passed, 0 failed.
 - Frontend lint: passed; frontend tests: 11 passed; frontend production build: passed.
 - The exact runtime script is [smoke-api.js](../scripts/smoke-api.js); it prints statuses only, marks test records clearly, and performs scoped cleanup. The read-only schema tool is [db-inspect.js](../scripts/db-inspect.js).
+
+## 11. Phase D — authorization and organization isolation
+
+### Role policy and scope audit
+
+- `docs/ROLES.md` maps OWNER/ADMIN, MANAGER, and EMPLOYEE onto the existing organization and workspace roles and lists view, create, edit, delete, invite, and member removal permissions for every requested resource.
+- Organization and workspace middleware share the role ranks in `backend/src/security/roles.js`. Workspace creation carries the creator's organization role into the workspace, and accepting a workspace invitation creates both memberships transactionally.
+- Migration 009 is insert-only and idempotent. On `project_management_test`, a temporary legacy membership fixture produced one missing organization membership on the first run and zero on the second; the fixture was removed and the orphan count was zero. On `project_management_saas`, the migration inserted zero rows and the orphan count remained zero.
+- Scoped-query defects fixed: task lists now verify the project belongs to the workspace and join project and assignee records through workspace membership; comment and attachment lists verify their parent task; activity actors, team managers, subtask assignees, time-entry users, and timeline assignees resolve only through workspace membership. Team manager assignment and task assignment/mentions reject users outside the workspace. Organization member removal revokes existing tokens. Invitation updates are constrained to their organization or workspace.
+- Cross-organization isolation and role-denial assertions run in `backend/test/authorizationIsolation.test.js`; fixtures and attachment files are cleaned only from the guarded test database.
+
+### Test and verification results
+
+| Test | Expected | Actual | Status |
+|---|---|---|---|
+| Migration 009 idempotence on `project_management_test` | Insert missing legacy membership once; second run inserts none; no orphan rows remain | First run inserted 1 test fixture row, second inserted 0; fixture cleaned; orphan count 0 | PASS |
+| Migration 009 on `project_management_saas` | Apply only missing organization memberships | Inserted 0 rows; orphan count 0 | PASS |
+| Phase D backend suite in isolated Phase D snapshot (`npm test`) | All backend tests pass against guarded test DB | 45 passed, 0 failed | PASS |
+| Phase D integration suite in isolated Phase D snapshot (`npm run test:integration`) | Isolation tests pass against guarded test DB | 2 passed, 0 failed | PASS |
+| Backend suite in shared working tree | All tests pass with the schema expected by checked-out source | 44 passed, 2 failed: concurrent Phase E source queried `projects.manager_id` and `users.avatar_url`, absent from `project_management_test` | FAIL — Phase E schema mismatch |
+| Backend build (`npm run build --prefix backend`) | Backend syntax check passes | Passed | PASS |
+| Frontend lint (`npm run lint --prefix frontend`) | No lint errors | Passed | PASS |
+| Frontend tests (`npm test --prefix frontend`) | All frontend tests pass | 11 passed | PASS |
+| Frontend production build (`npm run build --prefix frontend`) | Build completes | Passed | PASS |
+
+The final catalog check found migration 010 schema objects already present in `project_management_saas`; this Phase D work did not apply migration 010, and its code and migration are excluded from the Phase D commit. The test database still lacks those 010 objects. The shared-worktree backend failures above therefore remain until the separate Phase E source/schema work is reconciled. No Phase D smoke-test records remain; the test database returned to zero rows after integration cleanup. Existing main-database rows were left untouched.

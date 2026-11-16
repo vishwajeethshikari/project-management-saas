@@ -7,7 +7,7 @@ async function listProjects(req, res) {
   const { search = "", status } = req.query;
   const result = await pool.query(
     `SELECT p.*, COUNT(t.id)::int AS task_count
-     FROM projects p LEFT JOIN tasks t ON t.project_id = p.id
+     FROM projects p LEFT JOIN tasks t ON t.project_id = p.id AND t.workspace_id = p.workspace_id
      WHERE p.workspace_id = $1
        AND ($2 = '' OR p.name ILIKE '%' || $2 || '%' OR COALESCE(p.description, '') ILIKE '%' || $2 || '%')
        AND ($3::text IS NULL OR p.status = $3)

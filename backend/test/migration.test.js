@@ -74,3 +74,11 @@ test("workload and notification migration adds estimates and deduplicated prefer
   assert.doesNotMatch(migration, /\bDROP\s+(TABLE|DATABASE)\b/i);
   assert.doesNotMatch(migration, /\bTRUNCATE\b/i);
 });
+
+test("organization membership backfill is idempotent and insert-only", () => {
+  const migration = readFileSync(join(__dirname, "../../database/migrations/009_backfill_organization_memberships.sql"), "utf8");
+  assert.match(migration, /INSERT INTO organization_members/i);
+  assert.match(migration, /WHERE NOT EXISTS/i);
+  assert.match(migration, /CASE WHEN wm\.role = 'member' THEN 'employee'/i);
+  assert.doesNotMatch(migration, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/i);
+});

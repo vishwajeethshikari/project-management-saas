@@ -4,6 +4,7 @@ const path = require("node:path");
 const multer = require("multer");
 const pool = require("../config/db");
 const { apiError } = require("../utils/api");
+const { isManagerOrHigher } = require("../security/roles");
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const allowedMimeTypes = new Set([
@@ -13,7 +14,6 @@ const allowedMimeTypes = new Set([
   "image/png",
   "image/webp",
 ]);
-const roleRank = { viewer: 1, member: 2, employee: 2, manager: 3, admin: 4, owner: 5 };
 
 function storageDirectory() {
   return path.resolve(process.env.ATTACHMENT_STORAGE_DIR || path.join(__dirname, "..", "..", "private-uploads"));
@@ -87,6 +87,8 @@ function safeOriginalName(name) {
 const metadataColumns = `id,task_id,uploaded_by,original_name,mime_type,byte_size,created_at`;
 
 async function listAttachments(req, res) {
+  const task = await pool.query("SELECT id FROM tasks WHERE id=$1 AND workspace_id=$2", [req.params.taskId, req.workspaceId]);
+  if (!task.rows[0]) return apiError(res, 404, "Task not found");
   const result = await pool.query(
     `SELECT ${metadataColumns} FROM task_attachments
      WHERE task_id=$1 AND workspace_id=$2 AND organization_id=$3
@@ -183,7 +185,7 @@ async function deleteAttachment(req, res) {
   if (!attachment) return apiError(res, 404, "Attachment not found");
   if (
     String(attachment.uploaded_by) !== String(req.user.id) &&
-    (roleRank[req.workspaceRole] || 0) < roleRank.manager
+    !isManagerOrHigher(req.workspaceRole)
   ) {
     return apiError(res, 403, "Only the uploader or a manager can delete this attachment");
   }

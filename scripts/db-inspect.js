@@ -25,7 +25,7 @@ pool.removeAllListeners("error");
 pool.on("error", () => {});
 
 const migrationDirectory = path.resolve(__dirname, "../database/migrations");
-const migrationFiles = Array.from({ length: 8 }, (_, index) =>
+const migrationFiles = Array.from({ length: 9 }, (_, index) =>
   `${String(index + 1).padStart(3, "0")}_${[
     "create_users",
     "create_workspace_domain",
@@ -35,6 +35,7 @@ const migrationFiles = Array.from({ length: 8 }, (_, index) =>
     "task_attachments",
     "time_reporting_recurring_rules",
     "workload_analytics_notifications",
+    "backfill_organization_memberships",
   ][index]}.sql`
 );
 
@@ -99,6 +100,7 @@ const migrationMarkers = [
   { id: "006", objects: [["task_attachments", "table"]] },
   { id: "007", objects: [["recurring_tasks", "column", "recurrence_unit"], ["tasks", "column", "recurrence_id"], ["tasks", "column", "recurrence_run_at"]] },
   { id: "008", objects: [["notification_preferences", "table"], ["notifications", "column", "dedupe_key"], ["tasks", "column", "estimated_minutes"], ["tasks", "column", "completed_at"]] },
+  { id: "009", dataOnly: true, objects: [] },
 ];
 
 function quoteRelation(schema, table) {
@@ -286,6 +288,14 @@ async function inspect() {
   const currentConstraints = new Set(constraintResult.rows.filter((entry) => entry.table_schema === currentSchema).map((entry) => entry.constraint_name));
 
   const migrationStatus = migrationMarkers.map((migration) => {
+    if (migration.dataOnly) {
+      return {
+        migration: migration.id,
+        appears_applied: null,
+        evidence: "data-only migration; no schema marker or migration ledger exists",
+        missing_markers: [],
+      };
+    }
     const has = (object) => {
       const [name, kind, member] = object;
       if (kind === "table") return currentTables.has(name);

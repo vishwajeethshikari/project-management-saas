@@ -9,3 +9,4 @@
 \ir migrations/006_task_attachments.sql
 \ir migrations/007_time_reporting_recurring_rules.sql
 \ir migrations/008_workload_analytics_notifications.sql
+\ir migrations/009_backfill_organization_memberships.sql

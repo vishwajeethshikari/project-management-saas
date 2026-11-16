@@ -37,7 +37,9 @@ async function listActivity(req, res) {
   const result = await pool.query(
     `SELECT a.id,a.resource_type,a.resource_id,a.action,a.details,a.created_at,
             u.id AS actor_id,u.name AS actor_name
-     FROM activity_logs a LEFT JOIN users u ON u.id=a.actor_id
+     FROM activity_logs a
+     LEFT JOIN workspace_members actor_member ON actor_member.workspace_id=a.workspace_id AND actor_member.user_id=a.actor_id
+     LEFT JOIN users u ON u.id=actor_member.user_id
      WHERE a.workspace_id=$1
      ORDER BY a.created_at DESC,a.id DESC LIMIT $2`,
     [req.workspaceId, limit]);

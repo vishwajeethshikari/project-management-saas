@@ -87,6 +87,7 @@ async function removeOrganizationMember(req, res) {
        WHERE w.id=wm.workspace_id AND w.organization_id=$1 AND wm.user_id=$2`,
       [req.organizationId, req.params.userId]);
     await client.query("DELETE FROM organization_members WHERE organization_id=$1 AND user_id=$2", [req.organizationId, req.params.userId]);
+    await client.query("UPDATE users SET token_version=token_version+1 WHERE id=$1", [req.params.userId]);
     await client.query("COMMIT");
     res.status(204).send();
   } catch (error) { await client.query("ROLLBACK"); throw error; }
@@ -113,7 +114,7 @@ async function sendInvitation(req, res, invitation) {
     });
     if (result.delivered) delivery = "email";
   } catch (error) {
-    await pool.query("UPDATE organization_invitations SET status='revoked' WHERE id=$1", [invitation.id]);
+    await pool.query("UPDATE organization_invitations SET status='revoked' WHERE id=$1 AND organization_id=$2", [invitation.id, invitation.organization_id]);
     throw error;
   }
   return { inviteUrl: url.toString(), delivery };
@@ -190,7 +191,7 @@ async function acceptInvitation(req, res) {
       `INSERT INTO organization_members(organization_id,user_id,role) VALUES($1,$2,$3)
        ON CONFLICT(organization_id,user_id) DO NOTHING`,
       [invitation.rows[0].organization_id, req.user.id, invitation.rows[0].role]);
-    await client.query("UPDATE organization_invitations SET status='accepted' WHERE id=$1", [invitation.rows[0].id]);
+    await client.query("UPDATE organization_invitations SET status='accepted' WHERE id=$1 AND organization_id=$2", [invitation.rows[0].id, invitation.rows[0].organization_id]);
     await client.query("COMMIT");
     res.json({ success: true, organizationId: invitation.rows[0].organization_id });
   } catch (error) { await client.query("ROLLBACK"); throw error; }

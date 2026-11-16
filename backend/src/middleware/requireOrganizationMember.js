@@ -1,5 +1,5 @@
 const pool = require("../config/db");
-const rank = { viewer: 1, employee: 2, manager: 3, admin: 4, owner: 5 };
+const { hasMinimumRole } = require("../security/roles");
 
 module.exports = function requireOrganizationMember(options = {}) {
   return async (req, res, next) => {
@@ -12,7 +12,7 @@ module.exports = function requireOrganizationMember(options = {}) {
         `SELECT role FROM organization_members WHERE organization_id=$1 AND user_id=$2`,
         [organizationId, req.user.id]);
       if (!result.rows[0]) return res.status(404).json({ success: false, message: "Organization not found" });
-      if (options.role && (rank[result.rows[0].role] || 0) < (rank[options.role] || 0)) {
+      if (options.role && !hasMinimumRole(result.rows[0].role, options.role)) {
         return res.status(403).json({ success: false, message: "Insufficient organization permission" });
       }
       req.organizationId = organizationId;

@@ -7,7 +7,8 @@ async function listSubtasks(req, res) {
   if (!parent.rows[0]) return apiError(res, 404, "Task not found");
   const result = await pool.query(
     `SELECT s.*, u.name AS assignee_name FROM subtasks s
-     LEFT JOIN users u ON u.id=s.assignee_id
+     LEFT JOIN workspace_members assignee_member ON assignee_member.workspace_id=s.workspace_id AND assignee_member.user_id=s.assignee_id
+     LEFT JOIN users u ON u.id=assignee_member.user_id
      WHERE s.workspace_id=$1 AND s.task_id=$2 ORDER BY s.created_at, s.id`,
     [req.workspaceId, req.params.taskId]);
   res.json({ success: true, subtasks: result.rows });

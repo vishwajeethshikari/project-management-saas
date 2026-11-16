@@ -8,14 +8,16 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(nex
 
 const router = express.Router();
 router.use(authenticateToken);
-router.get("/:workspaceId/dashboard", requireWorkspaceMember(), wrap(c.dashboard));
-router.get("/:workspaceId/workload", requireWorkspaceMember(), wrap(analytics.getWorkspaceWorkload));
-router.get("/:workspaceId/analytics", requireWorkspaceMember(), wrap(analytics.getWorkspaceAnalytics));
-router.get("/:workspaceId/analytics/export.csv", requireWorkspaceMember(), wrap(analytics.exportWorkspaceAnalytics));
-router.get("/:workspaceId/notifications", requireWorkspaceMember(), wrap(c.listNotifications));
-router.get("/:workspaceId/notification-preferences", requireWorkspaceMember(), wrap(c.getNotificationPreferences));
-router.patch("/:workspaceId/notification-preferences", requireWorkspaceMember(), wrap(c.updateNotificationPreferences));
-router.get("/:workspaceId/activity", requireWorkspaceMember(), wrap(c.listActivity));
-router.patch("/:workspaceId/notifications/:notificationId/read", validateIds(["notificationId"]), requireWorkspaceMember(), wrap(c.markNotification));
+router.get("/:workspaceId/dashboard", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(c.dashboard));
+router.get("/:workspaceId/workload", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(analytics.getWorkspaceWorkload));
+router.get("/:workspaceId/analytics", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(analytics.getWorkspaceAnalytics));
+router.get("/:workspaceId/analytics/export.csv", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(analytics.exportWorkspaceAnalytics));
+router.get("/:workspaceId/notifications", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(c.listNotifications));
+router.get("/:workspaceId/notification-preferences", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(c.getNotificationPreferences));
+router.patch("/:workspaceId/notification-preferences", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(c.updateNotificationPreferences));
+router.get("/:workspaceId/activity", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(c.listActivity));
+router.post("/:workspaceId/notifications/read-all", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(c.markAllNotifications));
+router.patch("/:workspaceId/notifications/:notificationId/read", validateIds(["workspaceId", "notificationId"]), requireWorkspaceMember(), wrap(c.markNotification));
+router.delete("/:workspaceId/notifications/:notificationId", validateIds(["workspaceId", "notificationId"]), requireWorkspaceMember(), wrap(c.deleteNotification));
 
 module.exports = router;
