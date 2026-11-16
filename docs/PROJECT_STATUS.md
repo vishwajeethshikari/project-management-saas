@@ -1,10 +1,10 @@
-# Project Management & Team Collaboration SaaS — Read-only audit
+# Project Management & Team Collaboration SaaS — Audit and Phase C verification
 
-**Audit basis:** checked out branch `feature/full-stack-integration`, commit `7453acd`; the checkout has extensive modified and untracked files. Findings describe the working tree as inspected on 2026-11-16. No files were changed during inspection except this report. The live database was not queried: `psql` is unavailable, and an attempted client invocation did not reach PostgreSQL. Consequently, schema descriptions below are from SQL migrations and code, not proof of the deployed schema or its row counts. Runtime behavior is **not executed** unless explicitly stated.
+**Audit basis:** initial source audit on `feature/full-stack-integration` followed by Phase B read-only database inspection and Phase C smoke verification on 2026-11-16. The Phase B/C findings below supersede earlier notes that the live database could not be inspected. Runtime claims are limited to the commands and endpoints explicitly marked Verified.
 
 ## Executive summary
 
-The working tree contains a broad full-stack implementation: authentication, organization/workspace membership, projects/tasks, team collaboration, attachments, notifications, reporting, time tracking, recurrence, timeline, and analytics. Most modules have source-level end-to-end paths, but the product is a single large React screen rather than a complete navigable set of pages, the actual database state is unknown, and security/authorization consistency needs careful review. The selected worktree has uncommitted changes in 30+ tracked paths plus many untracked additions; committed branch history does not include much of the code being audited.
+The repository contains a broad full-stack implementation: authentication, organization/workspace membership, projects/tasks, team collaboration, attachments, notifications, reporting, time tracking, recurrence, timeline, and analytics. Phase C verified the core API smoke path and applied the missing attachment schema on the live application database. The product still uses a large single React screen rather than complete navigable pages, and security/authorization consistency needs further review. A safety snapshot commit preserves the prior working tree; the pre-existing modified backend env example remains excluded from commits.
 
 | Module | Estimated completion from source review |
 |---|---:|
@@ -22,16 +22,16 @@ These are audit estimates, not test-coverage or runtime claims.
 
 ### Ten highest-priority findings
 
-1. **Live schema cannot be confirmed.** Migrations are extensive, but no catalog/constraint/index/row-count query could run. `CREATE TABLE IF NOT EXISTS` does not repair incompatible pre-existing tables.
-2. **Workspace access depends on an organization membership join.** `requireWorkspaceMember` joins `organization_members` (backend/src/middleware/requireWorkspaceMember.js); any workspace membership without a matching org membership is denied, including legacy or partially migrated data.
+1. **Attachment schema was missing on the live database.** Migration 006 was applied and catalog checks now show the table, ten columns, and index. Name-level migration comparison passes; `CREATE TABLE IF NOT EXISTS` still does not repair incompatible pre-existing columns.
+2. **Workspace access depends on an organization membership join.** `requireWorkspaceMember` joins `organization_members` (backend/src/middleware/requireWorkspaceMember.js). The live check found zero orphan rows, but `workspace_members` currently has no rows, so populated membership behavior remains unverified.
 3. **Role semantics are inconsistent.** Organization and workspace roles use different rank maps and route minimums. `member` is not an organization role; workspace membership status is not enough to confirm org-role propagation or workspace membership synchronization.
 4. **Several IDs are not passed through `validateIds`.** Workspace IDs are checked in membership middleware; many nested controller IDs (e.g. project IDs in task list are validated, but task IDs only in some routes; organization IDs are validated in membership middleware) need route-by-route validation. Invalid IDs may become DB errors.
-5. **Current tree is not a clean release candidate.** Many changes are uncommitted/untracked, including new controllers and migrations, while branch commit history predates them. Reproducible review requires preserving this working-tree state.
+5. **A pre-existing environment template remains modified.** It was intentionally excluded from the snapshot commit; all other audited work was preserved on the safety branch and current feature branch.
 6. **No `helmet`, rate limiter, or explicit XSS sanitization is installed.** Input validation exists in places via Zod, but not all request surfaces are proven validated. CORS uses an allowlist defaulting to local Vite origins.
 7. **No change-password endpoint or credential re-authentication path exists.** Profile update changes only the name; forgot/reset is implemented.
 8. **Frontend is a monolithic `App.jsx` with state-driven modes.** There is no React Router or route-level protected-route component; authentication gating is app initialization state.
 9. **Keyboard-equivalent board reordering is not apparent.** Board status updates use interactive controls/drag state; accessible keyboard alternative was not found in source scan.
-10. **No runtime/API/database integration was executed.** Backend syntax and frontend lint passed; this does not verify server startup, migration compatibility, endpoint behavior, or UI flows.
+10. **Runtime verification covers only a focused path.** Core account, organization/workspace/project/task/comment/notification-list/attachment flows passed, but broad browser UX, email delivery, multi-user isolation, and advanced workflows remain unverified.
 
 ## 1. Repository, branches, contributors
 
@@ -76,7 +76,7 @@ These are audit estimates, not test-coverage or runtime claims.
 | `origin/revert-6-feat/task-priority-due-dates` | `d30a130` Avnirajput — revert task-priority feature | No reported diff; explicit revert branch |
 | `origin/vishwajeeth-user-auth-security` | `d7f9618` vishwajeethshikari — connect ProjectFlow UI to SaaS APIs | Same 27-file integration diff |
 
-Git shortlog (`git shortlog -sn --all`) ranks commits: vishwajeethshikari 66; avni 14; surabhiyadav11 13; Sri keerthi 11; silencesypher 5; Avnirajput 3; Surabhi Yadav 3; srikeerthi01 3. This is commit authorship, not a reliable measure of work in this uncommitted checkout.
+Git shortlog (`git shortlog -sn --all`) ranks commits: vishwajeethshikari 66; avni 14; surabhiyadav11 13; Sri keerthi 11; silencesypher 5; Avnirajput 3; Surabhi Yadav 3; srikeerthi01 3. This is commit authorship, not a reliable measure of work preserved in the snapshot commits.
 
 ### Contributors / purpose overlap
 
@@ -104,13 +104,13 @@ Conflicts in purpose: multiple `review-branches/*/frontend/src/App.jsx` copies i
 - **CORS:** explicit `CORS_ORIGINS` list; defaults to localhost Vite origins; credentials enabled. No wildcard default.
 - **Environment variable names only:** `PORT`, `CORS_ORIGINS`, `DATABASE_URL`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `TEST_DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `EMAIL_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL`, `ATTACHMENT_STORAGE_DIR`, `NODE_ENV`, `VITE_API_URL`. `.env` values were not read or printed.
 
-## 3. Database audit (migration-defined, live database unavailable)
+## 3. Database audit (live database inspected in Phase B/C)
 
 ### Migration-defined tables
 
 `users`, `workspaces`, `workspace_members`, `workspace_invitations`, `projects`, `tasks`, `task_comments`, `notifications`, `subtasks`, `task_dependencies`, `activity_logs`, `milestones`, `labels`, `task_labels`, `time_entries`, `recurring_tasks`, `teams`, `team_members`, `password_reset_tokens`, `organizations`, `organization_members`, `organization_invitations`, `task_attachments`, `notification_preferences` (24 tables total from migrations 001–008).
 
-PKs are identity `id` columns on entity tables; join tables use composite keys/unique constraints as declared. The migrations declare foreign keys between workspaces/users, workspace members/invitations, projects/tasks/comments/notifications, task workflow records, organizations/memberships/invitations, teams/members, time entries, and attachments. They add project/workspace composite integrity for tasks and multiple lookup indexes. Exact live PK/FK/index/unique definitions **not verified**. To determine them, run catalog queries against the intended database after the audit; do not infer deployed constraints solely from files.
+The live database PKs, FKs, unique/check constraints, columns, indexes, and exact row counts are inventoried in [DB_STATUS.md](DB_STATUS.md). All 24 migration-defined tables are present after applying migration 006. Migration 006's table and index were verified by catalog inspection.
 
 | Required entity | Source assessment | Notes |
 |---|---|---|
@@ -132,7 +132,7 @@ PKs are identity `id` columns on entity tables; join tables use composite keys/u
 
 `organization_id` does not appear on every domain row: workspaces carry it; many child tables are scoped through `workspace_id`. This can be sound if every query joins/checks workspace and organization membership consistently. A missing `organization_id` column alone is not proof of leakage. Review nested resource queries and composite constraints carefully. The current authorization middleware requires both workspace membership and an organization membership row.
 
-Potential gaps: no project member/manager assignment table; no mention model/foreign key; notification triggers cover assignment/mention/due reminders only by code/docs, not independently verified; no actual indexes can be confirmed. Migration 005 backfills organizations/workspaces via `INSERT`/`UPDATE`, but **these statements were inspected only, not executed**. `schema.sql` is a psql include wrapper; applying it to an existing database can leave incompatible old columns because most creates use `IF NOT EXISTS`.
+Potential gaps: no project member/manager assignment table; no mention model/foreign key; notification triggers beyond the smoke-tested notification list were not independently verified. Migration 005 backfill is reflected in the inspected live schema; migration 006 was applied in Phase C. `schema.sql` is a psql include wrapper; applying it to an existing database can leave incompatible old columns because most creates use `IF NOT EXISTS`.
 
 ## 4. Backend API inventory
 
@@ -159,7 +159,7 @@ The expected report endpoints exist in source as analytics functions; no PDF exp
 
 ## 6. Feature-by-feature status
 
-Status is based on source chain inspection, not runtime verification. `COMPLETE` means a plausible UI/API/controller/schema chain exists; it still needs execution.
+The original status table records the source-review assessment. Runtime verification for the subset exercised in Phase C is listed in section 10 and supersedes earlier “not executed” notes for those flows.
 
 | # | Feature | Status | Evidence and remaining gap |
 |---:|---|---|---|
@@ -219,20 +219,20 @@ Status is based on source chain inspection, not runtime verification. `COMPLETE`
 ### a) Runtime errors / build checks
 
 - `npm run build --prefix backend` **passed**; it only runs `node --check` for `src/app.js` and `src/server.js`, not a full build.
-- `npm run lint --prefix frontend` **passed**.
-- No tests were run. No server or browser was started. Static check cannot establish DB connection or runtime correctness.
-- Potential startup issue: `server.js` requires valid `JWT_SECRET` and database configuration at startup; deployment must provide required settings. Environment values were not inspected.
+- `npm run lint --prefix frontend` **passed**; backend and frontend test/build results are recorded in section 10.
+- Backend and frontend servers started on alternate ports because the defaults were occupied. API smoke requests confirmed health/readiness and the listed feature endpoints; a full browser UI flow was not run.
+- `server.js` requires valid JWT and database configuration at startup. Credentials were loaded for connections but are not included in this report or command output.
 
 ### b) API mismatches
 
 - No broad URL-prefix mismatch found: `apiRequest` base URL ends in `/api` and frontend paths begin `/auth`, `/workspaces`, `/organizations`.
-- API methods and UI payloads appear generally aligned in the inspected flows, but no endpoint was run. Nested resource scoping must be verified, particularly ensuring task/project IDs belong to the workspace in every controller query.
+- Phase C exercised the documented smoke subset. Other API methods and payloads remain source-reviewed but unexecuted; nested resource scoping still needs broader tests.
 - API docs claim several precise behaviors (e.g. status values, email delivery) that source migrations/code should be checked against rather than accepted as runtime truth.
 
 ### c) Tables/columns
 
 - Active migration source declares the domain tables listed above; no clear missing referenced table was established statically.
-- Live schema could not be compared to migrations. Therefore missing/extra columns, broken constraints, row counts, unique constraints and actual indexes remain unknown.
+- Live catalog comparison found all migration-defined objects except task attachments before Phase C. Migration 006 was then applied and verified; the current report shows no parsed migration object mismatch. Runtime definitions beyond name-level comparison should still be reviewed for intentional drift.
 - Project-member table is absent; labels table exists without active API surface.
 
 ### d) Authentication/authorization/isolation
@@ -244,22 +244,22 @@ Status is based on source chain inspection, not runtime verification. `COMPLETE`
 
 ### e) Security
 
-- No `.env` values were read. Only variable names were reported. No claim about secret values or committed secret contents is made.
+- No `.env` values were printed or copied into audit artifacts. Environment variable names are reported without values.
 - `helmet`, rate limiting, explicit XSS sanitization, and CSRF token protection were not found. Cookie uses HttpOnly/SameSite and CORS credentials allowlist; assess CSRF based on deployment origins and cookie policy.
 - `express.json()` has no explicit size limit in `app.js`; review oversized payload exposure.
-- Attachments use signature/MIME validation and private storage per controller/docs, but file cleanup, storage persistence, and deployment permissions were not executed.
+- Attachment signature validation, upload, authorized download, and cleanup passed the smoke flow. Persistent deployment storage and permissions remain unverified.
 - No endpoint response exposing password hashes/secrets was found in reviewed auth controller (`publicUser` allowlists fields).
 
 ### f) Hardcoded/fake data
 
-- Frontend API URL has local development fallback, not a production URL. Some display summaries are client-derived. The active frontend appears API-oriented; mock-data/runtime verification was not performed.
+- Frontend API URL has local development fallback, not a production URL. Some display summaries are client-derived. The active frontend appears API-oriented; only the endpoint subset in section 10 was exercised.
 - Historical dashboard branches use local state/local storage/simulated metrics; they are not evidence of the active app’s persistence.
 
 ### g) Dead/duplicate/conflicting implementations
 
 - `review-branches/` contains snapshots of duplicated React apps and multiple backend architectures, including Spring Java. These can confuse broad searches and are not mounted by current root scripts.
 - `incoming-App.jsx` is another app candidate; no active import was found.
-- Current working tree has substantial uncommitted changes beyond `origin/main`; branch attribution for those changes is unavailable.
+- The prior working-tree additions were captured in a safety snapshot commit; `review-branches/` and `incoming-App.jsx` remain ignored archive artifacts.
 
 ### h) UI/UX gaps
 
@@ -270,22 +270,69 @@ Status is based on source chain inspection, not runtime verification. `COMPLETE`
 
 ## 8. Prioritized implementation checklist
 
-1. **Preserve/review current worktree and establish clean baseline** (Small): capture/attribute the many uncommitted additions before any integration.
-2. **Verify live database safely** (Medium): on intended database, use SELECT-only `information_schema`/`pg_catalog` and counts; compare schema to migrations and resolve mismatches before migration execution.
+1. **Preserve/review current worktree and establish clean baseline** (Small): **complete**; safety snapshot branch and feature-branch snapshot commit created.
+2. **Verify live database safely** (Medium): **complete for inventory**; read-only catalog/count check done, migration 006 applied after backup confirmation, and schema rechecked.
 3. **Harden authorization boundaries** (Large): normalize role policy, workspace/org membership expectations, validate all nested IDs, verify assignee/project/team membership and resource scoping with automated tests.
 4. **Add operational protections** (Medium): request size limits, rate limits, secure headers, XSS strategy, CSRF/deployment review, upload storage/cleanup checks.
-5. **Complete core account flows** (Medium): change password, session/device controls if required, profile fields; execute registration/login/logout/recovery flows.
+5. **Complete core account flows** (Medium): registration/login/logout smoke path complete; change password, session/device controls if required, additional profile fields, and recovery email remain.
 6. **Complete core collaboration model** (Large): project membership/manager assignments; label API; mentions and notification triggers; ensure activity coverage.
 7. **Stabilize projects/tasks** (Large): exact status/priority values, assignment constraints, progress formula, search/filter/sort, persisted board interactions and keyboard equivalent.
-8. **Validate secondary workflows** (Medium): attachments, calendar dates/timezones, dependencies, recurring jobs, timers and notification dedupe under DB integration tests.
+8. **Validate secondary workflows** (Medium): attachment HTTP path verified; calendar dates/timezones, dependencies, recurring jobs, timers and notification dedupe still need DB-backed tests.
 9. **Complete reporting and product navigation** (Large): dedicated My Work/admin reports/settings/global search; charts and exports with documented formulas; PDF only if needed.
-10. **Run verification gates** (Medium): backend/frontend tests, integration tests on a dedicated test DB, build/lint, then browser smoke test; test execution was outside this audit.
+10. **Run verification gates** (Medium): backend/frontend tests, integration tests on a dedicated test DB, build/lint all passed; browser-based UI smoke test remains.
 
-## 9. Not verified
+## 9. Not verified after Phase C
 
-- Actual database tables, columns, constraints, indexes, migration state and row counts: `psql` was not installed; no live DB query completed.
-- Startup, HTTP responses, SQL compatibility, full UI interactions, uploads/email delivery, scheduled jobs, authorization behavior under multiple users, and production deployment behavior: not executed.
-- Test results: test files counted, but no test suite run.
+- Full browser interaction of the UI, email delivery, scheduled-job effects with due data, multi-user organization-isolation matrix, and production deployment behavior were not exercised.
+- Email workflows were not invoked; invitation and recovery mail delivery remains unverified.
+- Exact behavior of API endpoints not listed in the Phase C smoke table remains source-reviewed but not dynamically verified.
 - Exact endpoint-by-endpoint SQL filtering and payload shape for every controller: source-level sampled and route inventory complete, but full dynamic trace not executed.
 - Whether any `.env` file is tracked or contains secrets: values were deliberately not inspected; repository file listing excluded `backend/.env`.
 - Whether the user’s intended/default branch differs from `main`: branch comparison used `origin/main`, the configured remote HEAD.
+
+## 10. Phase C — runtime verification
+
+### Database
+
+- Main database `project_management_saas`: migration 006 (`task_attachments`) was applied after confirming its SQL contains only `BEGIN`, `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, and `COMMIT`. The read-only inspector then found 24 tables, all 10 attachment columns, and `idx_task_attachments_task`; no parsed migration objects are missing.
+- Test database `project_management_test`: read-only inspection before tests found all 24 tables and all eight migration markers already present, with no mismatch. No migration was needed there. Integration tests were guarded to allow only `localhost:5432/project_management_test`, require the `_test` suffix, and reject the main database.
+- The workspace membership isolation query returned zero workspace-member rows without the corresponding organization membership. The live `workspace_members` table was empty at inspection time.
+- After smoke cleanup, the database inspector reported the main database back at its pre-smoke row counts (users 3, organizations 1, organization invitations 2; all other listed tables 0). The test database also returned to zero rows after integration cleanup.
+
+### Verified endpoints
+
+Smoke tests ran against this checkout's backend at `http://localhost:5001/api`. Each endpoint below returned the expected status; attachment download also returned the uploaded PDF signature.
+
+| Request | Result |
+|---|---|
+| `GET /api/health` | Verified — 200 |
+| `GET /api/ready` | Verified — 200 |
+| `POST /api/auth/register` | Verified — 201 |
+| `POST /api/auth/login` | Verified — 200 |
+| `POST /api/auth/login` with invalid password | Verified — 401 |
+| `GET /api/auth/me` | Verified — 200 |
+| `POST /api/organizations` | Verified — 201 |
+| `POST /api/workspaces` | Verified — 201 |
+| `POST /api/workspaces/:workspaceId/projects` | Verified — 201 |
+| `POST /api/workspaces/:workspaceId/tasks` | Verified — 201 |
+| `PATCH /api/workspaces/:workspaceId/tasks/:taskId` | Verified — 200 (`in_progress`) |
+| `POST /api/workspaces/:workspaceId/tasks/:taskId/comments` | Verified — 201 |
+| `GET /api/workspaces/:workspaceId/notifications` | Verified — 200 |
+| `POST /api/workspaces/:workspaceId/tasks/:taskId/attachments` | Verified — 201 |
+| `GET /api/workspaces/:workspaceId/tasks/:taskId/attachments/:attachmentId/download` | Verified — 200 and matching PDF signature |
+| `POST /api/auth/logout` | Verified — 200 |
+
+The smoke account used the `@smoketest.local` suffix. Its attachment, task, project, workspace, organization and user were removed; no smoke rows or file remained.
+
+### Failure found and fixed
+
+- First integration run failed at task creation with PostgreSQL `42P08` because parameter `$5` was inferred as conflicting types in the status insert and completion-time `CASE`. `backend/src/controllers/taskController.js` now explicitly casts that comparison to `varchar(20)`. The complete backend suite and standalone integration command passed after the fix.
+- The default backend port 5000 and frontend port 5173 were already occupied by healthy local services. This checkout was started on ports 5001 and 5174; its frontend was configured to call port 5001. No existing listener was stopped.
+
+### Phase C verification
+
+- Backend syntax build: passed.
+- Backend tests: 43 passed, 0 failed, including database integration against the guarded test database.
+- Standalone backend integration command: 1 passed, 0 failed.
+- Frontend lint: passed; frontend tests: 11 passed; frontend production build: passed.
+- The exact runtime script is [smoke-api.js](../scripts/smoke-api.js); it prints statuses only, marks test records clearly, and performs scoped cleanup. The read-only schema tool is [db-inspect.js](../scripts/db-inspect.js).

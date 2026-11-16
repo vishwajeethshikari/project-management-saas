@@ -36,6 +36,11 @@ test(
     let attachmentStorageDirectory;
 
     try {
+      const connectedDatabase = await setupPool.query("SELECT current_database() AS database");
+      if (connectedDatabase.rows[0].database !== "project_management_test") {
+        throw new Error("Refusing integration setup unless connected to project_management_test.");
+      }
+
       for (const migration of [
         "001_create_users.sql",
         "002_create_workspace_domain.sql",

@@ -133,7 +133,7 @@ test("rejects production and application database targets", () => {
     () =>
       assert.throws(
         getTestDatabaseUrl,
-        /must target a test-named database and must not identify/
+        /must target localhost:5432\/project_management_test/
       )
   );
 
@@ -172,4 +172,36 @@ test("accepts a dedicated test-named database target", () => {
         "postgresql://user:password@localhost:5432/project_management_test"
       )
   );
+});
+
+test("rejects every database name except the approved _test database", () => {
+  for (const databaseName of ["mydb", "postgres", "driveease_vehicle", "project_management_test2"]) {
+    withEnvironment(
+      {
+        TEST_DATABASE_URL: `postgresql://user:password@localhost:5432/${databaseName}`,
+        DATABASE_URL: undefined,
+        DB_HOST: "localhost",
+        DB_PORT: "5432",
+        DB_NAME: "project_management_saas",
+        NODE_ENV: "test",
+      },
+      () => assert.throws(getTestDatabaseUrl, /must target localhost:5432\/project_management_test/)
+    );
+  }
+});
+
+test("rejects test database URLs that are not on localhost:5432", () => {
+  for (const target of ["db.example.test:5432", "localhost:5433"]) {
+    withEnvironment(
+      {
+        TEST_DATABASE_URL: `postgresql://user:password@${target}/project_management_test`,
+        DATABASE_URL: "postgresql://user:password@localhost:5432/project_management_saas",
+        DB_HOST: "localhost",
+        DB_PORT: "5432",
+        DB_NAME: "project_management_saas",
+        NODE_ENV: "test",
+      },
+      () => assert.throws(getTestDatabaseUrl, /must target localhost:5432\/project_management_test/)
+    );
+  }
 });

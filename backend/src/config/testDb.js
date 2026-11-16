@@ -2,7 +2,9 @@
 const { Pool } = require("pg");
 
 const productionMarker = /(^|[-_.])(prod|production)([-_.]|$)/i;
-const testDatabaseMarker = /(^|[-_.])test(s)?($|[-_.])/i;
+const allowedTestDatabase = "project_management_test";
+const allowedDatabaseHost = "localhost";
+const allowedDatabasePort = "5432";
 
 function databaseNameFromUrl(databaseUrl) {
   return decodeURIComponent(databaseUrl.pathname.slice(1));
@@ -70,14 +72,17 @@ function getTestDatabaseUrl() {
   }
 
   if (
-    !databaseName ||
-    !testDatabaseMarker.test(databaseName) ||
+    databaseName !== allowedTestDatabase ||
+    !databaseName.endsWith("_test") ||
+    databaseUrl.hostname.toLowerCase() !== allowedDatabaseHost ||
+    (databaseUrl.port || "5432") !== allowedDatabasePort ||
+    databaseName === "project_management_saas" ||
     productionMarker.test(databaseName) ||
     productionMarker.test(databaseUrl.hostname) ||
     targetsApplicationDatabase(databaseUrl, databaseName)
   ) {
     throw new Error(
-      "TEST_DATABASE_URL must target a test-named database and must not identify a production host or database."
+      "TEST_DATABASE_URL must target localhost:5432/project_management_test, end in _test, and differ from the application database."
     );
   }
 
@@ -93,11 +98,8 @@ async function testDatabase() {
     );
     const databaseName = result.rows[0].database;
 
-    if (
-      !testDatabaseMarker.test(databaseName) ||
-      productionMarker.test(databaseName)
-    ) {
-      throw new Error("Connected database is not identified as a test database.");
+    if (databaseName !== allowedTestDatabase || !databaseName.endsWith("_test")) {
+      throw new Error("Connected database is not the approved project_management_test database.");
     }
 
     console.log("PostgreSQL test database connection successful!");

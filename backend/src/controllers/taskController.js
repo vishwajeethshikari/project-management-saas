@@ -51,7 +51,7 @@ async function createTask(req, res) {
   const result = await pool.query(
     `INSERT INTO tasks
      (workspace_id, project_id, title, description, status, priority, assignee_id, start_date, due_date, estimated_minutes, created_by, completed_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CASE WHEN $5='completed' THEN NOW() ELSE NULL END) RETURNING *`,
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CASE WHEN $5::varchar(20)='completed' THEN NOW() ELSE NULL END) RETURNING *`,
     [req.workspaceId, parsed.data.projectId, parsed.data.title, parsed.data.description || null,
      parsed.data.status, parsed.data.priority, parsed.data.assigneeId || null,
      parsed.data.startDate || null, parsed.data.dueDate || null, parsed.data.estimatedMinutes ?? null, req.user.id]);
