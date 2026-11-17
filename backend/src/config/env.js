@@ -51,6 +51,33 @@ function validateEnvironment(env = process.env) {
     );
   }
 
+  const clientOrigins = (env.CLIENT_URL || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  for (const origin of clientOrigins) {
+    if (origin === "*") {
+      errors.push("CLIENT_URL must contain comma-separated HTTP or HTTPS origins; '*' is not allowed.");
+      break;
+    }
+
+    let parsedOrigin;
+    try {
+      parsedOrigin = new URL(origin);
+    } catch {
+      errors.push("CLIENT_URL must contain comma-separated HTTP or HTTPS origins.");
+      break;
+    }
+
+    if (
+      !["http:", "https:"].includes(parsedOrigin.protocol) ||
+      parsedOrigin.origin !== origin
+    ) {
+      errors.push("CLIENT_URL must contain comma-separated HTTP or HTTPS origins without paths or wildcards.");
+      break;
+    }
+  }
+
   if (Boolean(env.EMAIL_API_KEY) !== Boolean(env.EMAIL_FROM)) {
     errors.push("EMAIL_API_KEY and EMAIL_FROM must be configured together.");
   }

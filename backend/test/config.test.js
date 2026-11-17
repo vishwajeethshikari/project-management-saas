@@ -37,6 +37,26 @@ test("accepts a valid database URL and JWT configuration", () => {
   );
 });
 
+test("validates production client origins and rejects wildcard CORS", () => {
+  const validProductionEnvironment = {
+    NODE_ENV: "production",
+    DATABASE_URL: "postgresql://user:password@localhost:5432/app",
+    JWT_SECRET: "a".repeat(32),
+    CLIENT_URL: "https://app.example.test,https://admin.example.test",
+    EMAIL_API_KEY: "configured-key",
+    EMAIL_FROM: "ProjectFlow <no-reply@example.test>",
+  };
+
+  assert.doesNotThrow(() => validateEnvironment(validProductionEnvironment));
+  assert.doesNotThrow(() =>
+    validateEnvironment({ ...validProductionEnvironment, CLIENT_URL: "" })
+  );
+  assert.throws(
+    () => validateEnvironment({ ...validProductionEnvironment, CLIENT_URL: "*" }),
+    /CLIENT_URL.*not allowed/
+  );
+});
+
 test("reports missing required configuration without exposing secret values", () => {
   const secret = "short-sensitive-value";
   assert.throws(

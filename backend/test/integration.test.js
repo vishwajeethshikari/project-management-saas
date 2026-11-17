@@ -20,7 +20,7 @@ test(
     process.env.JWT_SECRET = randomBytes(32).toString("hex");
     process.env.JWT_EXPIRES_IN = "1h";
     process.env.NODE_ENV = "test";
-    process.env.CORS_ORIGINS = "http://localhost:5173";
+    process.env.CLIENT_URL = "http://localhost:5173";
 
     const setupPool = new Pool({ connectionString: testDatabaseUrl });
     const email = `integration-${randomUUID()}@example.test`;

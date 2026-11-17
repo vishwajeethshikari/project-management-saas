@@ -9,7 +9,7 @@ services:
     plan: 0.5c-512mb
     buildCommand: npm ci
     startCommand: npm start
-    healthCheckPath: /api/ready
+    healthCheckPath: /api/health
     autoDeployTrigger: commit
     buildFilter:
       includedPaths:
@@ -30,11 +30,13 @@ services:
           name: projectflow-fsi-db
           property: connectionString
       - key: JWT_SECRET
-        generateValue: true
-      - key: CORS_ORIGINS
-        value: https://projectflow-fsi-web.onrender.com
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 1h
+      - key: CLIENT_URL
+        sync: false
       - key: FRONTEND_URL
-        value: https://projectflow-fsi-web.onrender.com
+        sync: false
       - key: ATTACHMENT_STORAGE_DIR
         value: /var/data/attachments
       - key: EMAIL_API_KEY
@@ -47,8 +49,9 @@ services:
     runtime: static
     repo: https://github.com/vishwajeethshikari/project-management-saas
     branch: feature/full-stack-integration
-    buildCommand: npm ci --prefix frontend && npm run build --prefix frontend
-    staticPublishPath: frontend/dist
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
     autoDeployTrigger: commit
     buildFilter:
       includedPaths:
@@ -58,7 +61,11 @@ services:
       - key: NODE_VERSION
         value: 24.19.0
       - key: VITE_API_URL
-        value: https://projectflow-fsi-api.onrender.com/api
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
 
 databases:
   - name: projectflow-fsi-db

@@ -1,5 +1,6 @@
 process.env.JWT_SECRET = require("node:crypto").randomBytes(32).toString("hex");
 process.env.JWT_EXPIRES_IN = "1h";
+process.env.CLIENT_URL = "https://app.example.test,https://admin.example.test";
 
 const assert = require("node:assert/strict");
 const { after, before, test } = require("node:test");
@@ -257,13 +258,28 @@ test("reports liveness separately from PostgreSQL readiness", async () => {
   assert.equal(ready.body.message, "API and PostgreSQL are ready");
 });
 
-test("allows configured browser origins and credentials", async () => {
+test("allows configured browser origins and local development with credentials", async () => {
+  for (const origin of [
+    "https://app.example.test",
+    "https://admin.example.test",
+    "http://localhost:5173",
+  ]) {
+    const response = await fetch(`${baseUrl}/api/health`, {
+      headers: { origin },
+    });
+
+    assert.equal(response.headers.get("access-control-allow-origin"), origin);
+    assert.equal(response.headers.get("access-control-allow-credentials"), "true");
+  }
+});
+
+test("rejects unconfigured origins rather than allowing every origin", async () => {
   const response = await fetch(`${baseUrl}/api/health`, {
-    headers: { origin: "http://localhost:5173" },
+    headers: { origin: "https://unlisted.example.test" },
   });
 
-  assert.equal(response.headers.get("access-control-allow-origin"), "http://localhost:5173");
-  assert.equal(response.headers.get("access-control-allow-credentials"), "true");
+  assert.equal(response.status, 403);
+  assert.equal(response.headers.get("access-control-allow-origin"), null);
 });
 
 test("rejects a token for a user who no longer exists", async () => {
