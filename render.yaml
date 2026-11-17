@@ -12,7 +12,7 @@ services:
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     buildFilter:
-      includedPaths:
+      paths:
         - backend/**
         - database/**
         - render.yaml
@@ -54,7 +54,7 @@ services:
     staticPublishPath: dist
     autoDeployTrigger: commit
     buildFilter:
-      includedPaths:
+      paths:
         - frontend/**
         - render.yaml
     envVars:
