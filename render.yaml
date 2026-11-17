@@ -6,7 +6,7 @@ services:
     branch: feature/full-stack-integration
     rootDir: backend
     region: singapore
-    plan: 0.5c-512mb
+    plan: free
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
@@ -16,10 +16,6 @@ services:
         - backend/**
         - database/**
         - render.yaml
-    disk:
-      name: projectflow-attachments
-      mountPath: /var/data/attachments
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -38,7 +34,7 @@ services:
       - key: FRONTEND_URL
         sync: false
       - key: ATTACHMENT_STORAGE_DIR
-        value: /var/data/attachments
+        value: /tmp/attachments
       - key: EMAIL_API_KEY
         sync: false
       - key: EMAIL_FROM
@@ -70,6 +66,6 @@ services:
 databases:
   - name: projectflow-fsi-db
     databaseName: projectflow
-    plan: 0.1c-256mb
+    plan: free
     region: singapore
     postgresMajorVersion: "17"
