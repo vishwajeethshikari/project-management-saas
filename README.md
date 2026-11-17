@@ -87,6 +87,11 @@ branch. It uses a paid API plan, a 1 GB persistent disk for task attachments,
 and a paid PostgreSQL plan; check Render's current pricing and your workspace
 before provisioning. The static site is free to deploy.
 
+The API service uses `rootDir: backend`, `npm ci`, and `npm start`; the
+backend's production start script is `node src/server.js`. The frontend is a
+separate static site with a rewrite to `/index.html` so direct navigation and
+browser refreshes work on client-side routes.
+
 To deploy, connect the GitHub repository in the Render Dashboard, create a
 Blueprint instance from `render.yaml`, and review the service names, assigned
 `onrender.com` domains, region, plans, and estimated costs before confirming.
@@ -98,10 +103,26 @@ The YAML expects the API domain
 requires both. Render generates `JWT_SECRET` and supplies the private
 PostgreSQL connection string.
 
-Database migrations are deliberately not run by the Blueprint. After explicit
-approval to migrate, apply the ordered migrations in `database/schema.sql` to
-the Render database, then verify `/api/ready` and the frontend. Do not run
-`backend/scripts/seed-demo.js` in production; create or use a real account
-without publishing demo credentials. See
+Database migrations are deliberately not run on every deploy. The prior
+migration approval applies only to a new Render database. Before applying the
+schema to any existing database, inspect its current schema and take a verified
+backup; `database/schema.sql` does not reconcile incompatible existing tables.
+After confirming the Render Postgres connection is the intended target, run
+the ordered migrations once from the repository root with Render CLI:
+
+```powershell
+$databaseId = Read-Host "Render Postgres database ID"
+render psql $databaseId -- -f database/schema.sql
+```
+
+The second command applies the repository's existing `database/schema.sql`;
+do not substitute local database settings or run it against a local database.
+In Render Dashboard, check the API service's **Settings → Build & Deploy**:
+the root directory must be `backend`, the build command `npm ci`, and the start
+command `npm start`. If the service is Blueprint-managed, sync the updated
+Blueprint; a later Blueprint sync overwrites conflicting Dashboard settings.
+Then verify `/api/ready`, the frontend, authentication, and CRUD using a
+non-demo account. Do not run `backend/scripts/seed-demo.js` in production.
+See
 [Render Blueprint documentation](https://render.com/docs/blueprint-spec) and
 [Render CLI documentation](https://render.com/docs/cli).
