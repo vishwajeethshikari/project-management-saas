@@ -389,7 +389,7 @@ test(
       })).status, 403);
       assert.equal((await request(`/api/workspaces/${a.workspaceId}/tasks/${a.taskId}/comments/${a.commentId}`, {
         method: "DELETE", token: employeeToken,
-      })).status, 404);
+      })).status, 204);
 
       const managerToken = orgA.tokens.manager;
       assert.equal((await request(`/api/workspaces/${a.workspaceId}`, {

@@ -5,6 +5,7 @@ const {
   logout,
   currentUser,
   updateCurrentUser,
+  changePassword,
   requestPasswordReset,
   resetPassword,
 } = require("../controllers/authController");
@@ -27,6 +28,9 @@ router.post("/password/forgot", (req, res, next) => {
 });
 router.post("/password/reset", (req, res, next) => {
   resetPassword(req, res).catch(next);
+});
+router.post("/password/change", authenticateToken, (req, res, next) => {
+  changePassword(req, res).catch(next);
 });
 router.get("/me", authenticateToken, (req, res, next) => {
   currentUser(req, res).catch(next);

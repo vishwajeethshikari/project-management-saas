@@ -51,6 +51,7 @@ test(
         "007_time_reporting_recurring_rules.sql",
         "008_workload_analytics_notifications.sql",
         "009_backfill_organization_memberships.sql",
+        "010_project_members_and_enhancements.sql",
       ]) {
         const sql = await readFile(
           join(__dirname, "../../database/migrations", migration),
@@ -239,11 +240,20 @@ test(
       });
       assert.equal(createdTeam.status, 201);
       const teamId = createdTeam.body.team.id;
-      assert.equal((await request(`/api/workspaces/${workspaceId}/teams/${teamId}/members`, {
+      const addedTeamMember = await request(`/api/workspaces/${workspaceId}/teams/${teamId}/members`, {
         method: "POST",
         body: { userId: outsiderUserId, role: "employee" },
-      })).status, 201);
+      });
+      assert.equal(addedTeamMember.status, 201);
+      assert.equal((await setupPool.query("SELECT user_id FROM team_members WHERE team_id=$1 AND user_id=$2", [teamId, outsiderUserId])).rowCount, 1);
       assert.equal((await request(`/api/workspaces/${workspaceId}/teams`)).body.teams[0].member_count, 2);
+      const renamedTeam = await request(`/api/workspaces/${workspaceId}/teams/${teamId}`, {
+        method: "PATCH", body: { name: "Renamed integration team", description: "Verified by integration" },
+      });
+      assert.equal(renamedTeam.status, 200);
+      assert.equal((await setupPool.query("SELECT name FROM teams WHERE id=$1", [teamId])).rows[0].name, "Renamed integration team");
+      assert.equal((await request(`/api/workspaces/${workspaceId}/teams/${teamId}/members/${outsiderUserId}`, { method: "DELETE" })).status, 204);
+      assert.equal((await setupPool.query("SELECT user_id FROM team_members WHERE team_id=$1 AND user_id=$2", [teamId, outsiderUserId])).rowCount, 0);
 
       const createdProject = await request(`/api/workspaces/${workspaceId}/projects`, {
         method: "POST",
@@ -251,6 +261,26 @@ test(
       });
       assert.equal(createdProject.status, 201);
       const projectId = createdProject.body.project.id;
+      const createdProjectMember = await request(`/api/workspaces/${workspaceId}/projects/${projectId}/members`, {
+        method: "POST", body: { userId: outsiderUserId },
+      });
+      assert.equal(createdProjectMember.status, 201);
+      assert.equal((await setupPool.query("SELECT user_id FROM project_members WHERE project_id=$1 AND user_id=$2", [projectId, outsiderUserId])).rowCount, 1);
+      assert.equal((await request(`/api/workspaces/${workspaceId}/projects/${projectId}/members/${outsiderUserId}`, { method: "DELETE" })).status, 204);
+      assert.equal((await setupPool.query("SELECT user_id FROM project_members WHERE project_id=$1 AND user_id=$2", [projectId, outsiderUserId])).rowCount, 0);
+      const milestone = await request(`/api/workspaces/${workspaceId}/projects/${projectId}/milestones`, {
+        method: "POST", body: { name: "Integration milestone", dueDate: "2026-12-15" },
+      });
+      assert.equal(milestone.status, 201);
+      const milestoneId = milestone.body.milestone.id;
+      assert.equal((await setupPool.query("SELECT name FROM milestones WHERE id=$1", [milestoneId])).rows[0].name, "Integration milestone");
+      const updatedMilestone = await request(`/api/workspaces/${workspaceId}/projects/${projectId}/milestones/${milestoneId}`, {
+        method: "PATCH", body: { name: "Updated integration milestone", isCompleted: true },
+      });
+      assert.equal(updatedMilestone.body.milestone.name, "Updated integration milestone");
+      assert.ok((await setupPool.query("SELECT completed_at FROM milestones WHERE id=$1", [milestoneId])).rows[0].completed_at);
+      assert.equal((await request(`/api/workspaces/${workspaceId}/projects/${projectId}/milestones/${milestoneId}`, { method: "DELETE" })).status, 204);
+      assert.equal((await setupPool.query("SELECT id FROM milestones WHERE id=$1", [milestoneId])).rowCount, 0);
       assert.equal((await request(`/api/workspaces/${workspaceId}/projects`)).status, 200);
       assert.equal((await request(`/api/workspaces/${workspaceId}/projects/${projectId}/tasks?status=not-a-status`)).status, 400);
       assert.equal((await request(`/api/workspaces/${workspaceId}/tasks`, {
@@ -267,6 +297,7 @@ test(
         body: { name: "Renamed integration project" },
       });
       assert.equal(renamedProject.body.project.status, "completed");
+      assert.equal((await setupPool.query("SELECT name,status FROM projects WHERE id=$1", [projectId])).rows[0].name, "Renamed integration project");
 
       const createdTask = await request(`/api/workspaces/${workspaceId}/tasks`, {
         method: "POST",
@@ -274,6 +305,7 @@ test(
       });
       assert.equal(createdTask.status, 201);
       const taskId = createdTask.body.task.id;
+      assert.equal((await setupPool.query("SELECT title,estimated_minutes FROM tasks WHERE id=$1", [taskId])).rows[0].title, "Integration task");
       assert.equal((await request(`/api/workspaces/${workspaceId}/workload`)).status, 200);
       assert.equal((await request(`/api/workspaces/${workspaceId}/projects/${projectId}/analytics`)).status, 200);
       assert.equal((await request(`/api/workspaces/${workspaceId}/teams/${teamId}/productivity`)).status, 200);
@@ -287,6 +319,7 @@ test(
         body: { taskId },
       });
       assert.equal(timerStart.status, 201);
+      assert.equal((await setupPool.query("SELECT task_id,user_id,ended_at FROM time_entries WHERE id=$1", [timerStart.body.entry.id])).rowCount, 1);
       assert.equal((await request(`/api/workspaces/${workspaceId}/time-entries/active`)).body.activeTimers.length, 1);
       assert.equal((await request(`/api/workspaces/${workspaceId}/time-entries/start`, {
         method: "POST", body: { taskId },
@@ -308,9 +341,10 @@ test(
         body: { note: "Edited integration entry" },
       });
       assert.equal(updatedTimeEntry.body.entry.note, "Edited integration entry");
+      assert.equal((await setupPool.query("SELECT note,duration_seconds FROM time_entries WHERE id=$1", [manualTimeEntry.body.entry.id])).rows[0].note, "Edited integration entry");
       assert.ok(Number((await request(`/api/workspaces/${workspaceId}/tasks/${taskId}/time-entries`)).body.summary.total_seconds) >= 1800);
       assert.equal((await request(`/api/workspaces/${workspaceId}/projects/${projectId}/time-summary`)).status, 200);
-      const timeReport = await request(`/api/workspaces/${workspaceId}/time-reports?fromDate=${manualTimeStart.slice(0, 10)}&toDate=${manualTimeEnd.slice(0, 10)}`);
+      const timeReport = await request(`/api/workspaces/${workspaceId}/time-reports`);
       assert.equal(timeReport.status, 200);
       assert.ok(timeReport.body.daily.length);
       assert.ok(timeReport.body.weekly.length);
@@ -368,6 +402,7 @@ test(
       const uploadedAttachment = await upload(attachmentRoute, pdfContent, "application/pdf", "brief.pdf");
       assert.equal(uploadedAttachment.status, 201, JSON.stringify(uploadedAttachment.body));
       const attachmentId = uploadedAttachment.body.attachment.id;
+      assert.equal((await setupPool.query("SELECT task_id,workspace_id,original_name FROM task_attachments WHERE id=$1", [attachmentId])).rows[0].original_name, "brief.pdf");
       assert.equal(uploadedAttachment.body.attachment.original_name, "brief.pdf");
       assert.equal(Number(uploadedAttachment.body.attachment.byte_size), pdfContent.length);
       assert.equal("storage_key" in uploadedAttachment.body.attachment, false);
@@ -427,11 +462,16 @@ test(
         body: { title: "Integration subtask" },
       });
       assert.equal(createdSubtask.status, 201);
+      const subtaskId = createdSubtask.body.subtask.id;
+      assert.equal((await setupPool.query("SELECT title FROM subtasks WHERE id=$1", [subtaskId])).rows[0].title, "Integration subtask");
       assert.equal((await request(`/api/workspaces/${workspaceId}/tasks/${taskId}/subtasks`)).body.subtasks.length, 1);
-      assert.equal((await request(`/api/workspaces/${workspaceId}/tasks/${taskId}/subtasks/${createdSubtask.body.subtask.id}`, {
+      assert.equal((await request(`/api/workspaces/${workspaceId}/tasks/${taskId}/subtasks/${subtaskId}`, {
         method: "PATCH",
         body: { isCompleted: true },
       })).body.subtask.is_completed, true);
+      assert.equal((await setupPool.query("SELECT is_completed FROM subtasks WHERE id=$1", [subtaskId])).rows[0].is_completed, true);
+      assert.equal((await request(`/api/workspaces/${workspaceId}/tasks/${taskId}/subtasks/${subtaskId}`, { method: "DELETE" })).status, 204);
+      assert.equal((await setupPool.query("SELECT id FROM subtasks WHERE id=$1", [subtaskId])).rowCount, 0);
       const blocker = await request(`/api/workspaces/${workspaceId}/tasks`, {
         method: "POST",
         body: { projectId, title: "Integration blocker" },
@@ -458,10 +498,17 @@ test(
         ? [taskId, blocker.body.task.id]
         : [blocker.body.task.id, taskId];
       await request(`/api/workspaces/${workspaceId}/tasks/${successfulEdge[0]}/dependencies/${successfulEdge[1]}`, { method: "DELETE" });
-      assert.equal((await request(`/api/workspaces/${workspaceId}/tasks/${taskId}/comments`, {
+      const taskComment = await request(`/api/workspaces/${workspaceId}/tasks/${taskId}/comments`, {
         method: "POST",
         body: { body: `Integration comment for @${outsiderEmail}` },
-      })).status, 201);
+      });
+      assert.equal(taskComment.status, 201);
+      const taskCommentId = taskComment.body.comment.id;
+      assert.equal((await setupPool.query("SELECT body FROM task_comments WHERE id=$1", [taskCommentId])).rows[0].body, `Integration comment for @${outsiderEmail}`);
+      const updatedComment = await request(`/api/workspaces/${workspaceId}/tasks/${taskId}/comments/${taskCommentId}`, {
+        method: "PATCH", body: { body: `Updated integration comment ${outsiderEmail}` },
+      });
+      assert.equal(updatedComment.body.comment.body, `Updated integration comment ${outsiderEmail}`);
       assert.equal((await request(`/api/workspaces/${workspaceId}/notifications`, { authCookie: outsiderCookie }))
         .body.notifications.some((notification) => notification.type === "mention"), false);
       assert.equal((await request(`/api/workspaces/${workspaceId}/notification-preferences`, {
@@ -480,6 +527,11 @@ test(
       assert.ok(notifications.body.notifications.some((notification) => notification.type === "mention"));
       const mention = notifications.body.notifications.find((notification) => notification.type === "mention");
       assert.equal((await request(`/api/workspaces/${workspaceId}/notifications/${mention.id}/read`, { method: "PATCH", authCookie: outsiderCookie })).status, 200);
+      assert.equal((await setupPool.query("SELECT is_read FROM notifications WHERE id=$1", [mention.id])).rows[0].is_read, true);
+      assert.equal((await request(`/api/workspaces/${workspaceId}/notifications/${mention.id}`, { method: "DELETE", authCookie: outsiderCookie })).status, 204);
+      assert.equal((await setupPool.query("SELECT id FROM notifications WHERE id=$1", [mention.id])).rowCount, 0);
+      assert.equal((await request(`/api/workspaces/${workspaceId}/tasks/${taskId}/comments/${taskCommentId}`, { method: "DELETE" })).status, 204);
+      assert.equal((await setupPool.query("SELECT id FROM task_comments WHERE id=$1", [taskCommentId])).rowCount, 0);
       assert.equal((await request(`/api/workspaces/${workspaceId}/dashboard`)).status, 200);
 
       assert.equal((await request(`/api/organizations/${organizationId}/members/${outsiderUserId}`, {
@@ -498,6 +550,9 @@ test(
       assert.equal((await request(`/api/workspaces/${workspaceId}/projects/${projectId}`, {
         method: "DELETE",
       })).status, 204);
+      assert.equal((await setupPool.query("SELECT id FROM projects WHERE id=$1", [projectId])).rowCount, 0);
+      assert.equal((await request(`/api/workspaces/${workspaceId}/teams/${teamId}`, { method: "DELETE" })).status, 204);
+      assert.equal((await setupPool.query("SELECT id FROM teams WHERE id=$1", [teamId])).rowCount, 0);
       assert.equal((await request(`/api/workspaces/${workspaceId}`, {
         method: "DELETE",
       })).status, 204);

@@ -9,5 +9,7 @@ private-uploads/
 **/private-uploads/
 attachment-storage/
 **/attachment-storage/
+/frontend/test-results/
+/frontend/playwright-report/
 review-branches/
 /incoming-App.jsx

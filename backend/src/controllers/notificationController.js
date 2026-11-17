@@ -10,6 +10,7 @@ const preferencesSchema = z.object({
 
 const preferenceFields = {
   assignment: "assignment_enabled",
+  project_member: "assignment_enabled",
   mention: "mention_enabled",
   due_date: "due_date_enabled",
 };

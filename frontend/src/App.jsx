@@ -2,6 +2,35 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import { apiRequest } from "./api";
+import { resolveRoute } from "./routing";
+import {
+  LayoutDashboard,
+  CheckSquare,
+  FolderKanban,
+  ListTodo,
+  Columns3,
+  Calendar as CalendarIcon,
+  Milestone,
+  Users,
+  BarChart3,
+  Clock,
+  Settings as SettingsIcon,
+  Search,
+  Sun,
+  Moon,
+  Bell,
+  CheckCircle2,
+  Building2,
+  Briefcase,
+  X,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Eye,
+  EyeOff,
+  Mail,
+  Contact,
+  UserRound
+} from "lucide-react";
 
 function dateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -21,6 +50,7 @@ function daysBetween(left, right) {
 
 function calendarDates(view, cursor) {
   if (view === "day") return [new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate())];
+  if (view === "agenda") return Array.from({ length: 14 }, (_, index) => new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + index));
   if (view === "week") {
     const first = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() - cursor.getDay());
     return Array.from({ length: 7 }, (_, index) => new Date(first.getFullYear(), first.getMonth(), first.getDate() + index));
@@ -50,6 +80,7 @@ function AuthScreen({ onAuthenticated, recoveryToken = "" }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [resetToken, setRecoveryToken] = useState(recoveryToken);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -100,93 +131,147 @@ function AuthScreen({ onAuthenticated, recoveryToken = "" }) {
   }
 
   return (
-    <main className="auth-page">
-      <form className="content-panel auth-card" onSubmit={submit}>
-        <div className="brand">
-          <div className="brand-mark">p</div>
-          <span>projectflow</span>
+    <main className="auth-container">
+      <div className="auth-hero">
+        <div className="auth-hero-branding">
+          <div className="brand-mark">P</div>
+          <span>PROJECTFLOW</span>
         </div>
+        <div className="auth-hero-content">
+          <div className="eyebrow" style={{ color: "#a5b4fc" }}>ENTERPRISE COLLABORATION SAAS</div>
+          <h1>Accelerate your product delivery with intelligent workflows.</h1>
+          <p>
+            The unified platform for cross-functional teams. Coordinate roadmaps, manage Kanban sprints, track real-time workloads, and maintain complete multi-tenant security.
+          </p>
+          <div className="auth-features-list">
+            <div className="auth-feature-item">
+              <CheckCircle2 size={18} color="#34d399" />
+              <span>Interactive Gantt & Sprints with milestone tracking</span>
+            </div>
+            <div className="auth-feature-item">
+              <CheckCircle2 size={18} color="#34d399" />
+              <span>Granular Role-Based Access (Owner, Admin, Manager, Employee)</span>
+            </div>
+            <div className="auth-feature-item">
+              <CheckCircle2 size={18} color="#34d399" />
+              <span>Multi-tenant isolated organizations & workspaces</span>
+            </div>
+            <div className="auth-feature-item">
+              <CheckCircle2 size={18} color="#34d399" />
+              <span>Live workload analytics and native time tracking</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ fontSize: "12px", color: "#94a3b8" }}>
+          © 2026 ProjectFlow SaaS Inc. All rights reserved.
+        </div>
+      </div>
 
-        <h1>
-          {{ login: "Welcome back", register: "Create your account", forgot: "Recover your account", reset: "Choose a new password" }[mode]}
-        </h1>
+      <div className="auth-form-wrapper">
+        <form className="auth-card" onSubmit={submit}>
+          <div className="brand" style={{ marginBottom: "16px" }}>
+            <div className="brand-mark">P</div>
+            <span>PROJECTFLOW</span>
+          </div>
 
-        {mode === "register" && (
-          <label className="form-field">
-            Name
-            <input
-              value={name}
-              onChange={(event) => {
-                setName(event.target.value);
+          <h1>
+            {{ login: "Welcome back", register: "Create your account", forgot: "Recover your account", reset: "Choose a new password" }[mode]}
+          </h1>
+          <p className="auth-subtitle">
+            {mode === "login" ? "Enter your credentials to access your workspaces." : mode === "register" ? "Start organizing your projects and team in seconds." : "Follow instructions to securely regain account access."}
+          </p>
+
+          {mode === "register" && (
+            <label className="form-field">
+              Full Name
+              <input
+                value={name}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  setError("");
+                }}
+                required
+              />
+            </label>
+          )}
+
+          {mode !== "reset" && (
+            <label className="form-field">
+              Work Email
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setError("");
+                }}
+                required
+              />
+            </label>
+          )}
+
+          {(mode === "login" || mode === "register" || mode === "reset") && (
+            <label className="form-field">
+              {mode === "reset" ? "New password" : "Password"}
+              <span className="password-input-wrap">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  minLength={8}
+                  value={password}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    setError("");
+                  }}
+                  required
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                />
+                <button className="password-visibility" type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}>
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </span>
+            </label>
+          )}
+
+          {error && <p className="form-error">{error}</p>}
+          {notice && <p className="form-notice" role="status">{notice}</p>}
+
+          <button
+            className="primary-button"
+            style={{ width: "100%", padding: "10px", marginTop: "8px" }}
+            type="submit"
+            disabled={isSubmitting}
+          >
+            {isSubmitting
+              ? "Please wait..."
+              : ({ login: "Sign in", register: "Create account", forgot: "Send recovery link", reset: "Reset password" }[mode])}
+          </button>
+
+          {(mode === "login" || mode === "register") && (
+            <button
+              className="text-button"
+              type="button"
+              style={{ marginTop: "12px", alignSelf: "center" }}
+              onClick={() => {
+                setMode(mode === "login" ? "register" : "login");
                 setError("");
+                setNotice("");
               }}
-              required
-            />
-          </label>
-        )}
-
-        {mode !== "reset" && <label className="form-field">
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => {
-              setEmail(event.target.value);
-              setError("");
-            }}
-            required
-          />
-        </label>}
-
-        {(mode === "login" || mode === "register" || mode === "reset") && <label className="form-field">
-          {mode === "reset" ? "New password" : "Password"}
-          <input
-            type="password"
-            minLength={8}
-            value={password}
-            onChange={(event) => {
-              setPassword(event.target.value);
-              setError("");
-            }}
-            required
-          />
-        </label>}
-
-        {error && <p className="form-error">{error}</p>}
-        {notice && <p className="form-notice" role="status">{notice}</p>}
-
-        <button
-          className="primary-button full-width"
-          type="submit"
-          disabled={isSubmitting}
-        >
-          {isSubmitting
-            ? "Please wait..."
-            : ({ login: "Sign in", register: "Create account", forgot: "Send recovery link", reset: "Reset password" }[mode])}
-        </button>
-
-        {(mode === "login" || mode === "register") && <button
-          className="text-button"
-          type="button"
-          onClick={() => {
-            setMode(mode === "login" ? "register" : "login");
-            setError("");
-            setNotice("");
-          }}
-        >
-          {mode === "login" ? "Create an account" : "Already have an account?"}
-        </button>}
-        {mode === "login" && (
-          <button className="text-button" type="button" onClick={() => { setMode("forgot"); setError(""); setNotice(""); }}>
-            Forgot password?
-          </button>
-        )}
-        {(mode === "forgot" || mode === "reset") && (
-          <button className="text-button" type="button" onClick={() => { setMode("login"); setError(""); setNotice(""); }}>
-            Back to sign in
-          </button>
-        )}
-      </form>
+            >
+              {mode === "login" ? "Create an account" : "Already have an account?"}
+            </button>
+          )}
+          {mode === "login" && (
+            <button className="text-button" type="button" style={{ alignSelf: "center" }} onClick={() => { setMode("forgot"); setError(""); setNotice(""); }}>
+              Forgot password?
+            </button>
+          )}
+          {(mode === "forgot" || mode === "reset") && (
+            <button className="text-button" type="button" style={{ alignSelf: "center" }} onClick={() => { setMode("login"); setError(""); setNotice(""); }}>
+              Back to sign in
+            </button>
+          )}
+        </form>
+      </div>
     </main>
   );
 }
@@ -197,13 +282,33 @@ function AuthScreen({ onAuthenticated, recoveryToken = "" }) {
 
 export default function App() {
   const initializationStarted = useRef(false);
+  const [pathname, setPathname] = useState(() => window.location.pathname === "/" ? "/dashboard" : (window.location.pathname || "/dashboard"));
+  const route = resolveRoute(pathname);
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("projectflow_theme") || "light";
+    } catch {
+      return "light";
+    }
+  });
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const activeNav = route.nav;
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState("");
+  const [globalSearchResults, setGlobalSearchResults] = useState({ projects: [], tasks: [], members: [] });
+  const [isGlobalSearchLoading, setIsGlobalSearchLoading] = useState(false);
   const [user, setUser] = useState(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+  const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+  const [routeError, setRouteError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [boardMode, setBoardMode] = useState(false);
   const [calendarMode, setCalendarMode] = useState(false);
   const [timelineMode, setTimelineMode] = useState(false);
+  const routeBoardMode = route.key === "board" || boardMode;
+  const routeCalendarMode = route.key === "calendar" || calendarMode;
+  const routeTimelineMode = route.key === "timeline" || timelineMode;
   const [timelineDays, setTimelineDays] = useState(30);
   const [timelineCursor, setTimelineCursor] = useState(() => new Date());
   const [timelineGroupBy, setTimelineGroupBy] = useState("assignee");
@@ -267,6 +372,33 @@ export default function App() {
   });
   const [showInbox, setShowInbox] = useState(false);
   const [activityLog, setActivityLog] = useState([]);
+  const [myWorkData, setMyWorkData] = useState(null);
+  const [workspaceTasks, setWorkspaceTasks] = useState([]);
+  const [projectDetail, setProjectDetail] = useState(null);
+  const [projectMembers, setProjectMembers] = useState([]);
+  const [projectDetailTab, setProjectDetailTab] = useState("overview");
+  const [teamDetail, setTeamDetail] = useState(null);
+  const [teamDetailDraft, setTeamDetailDraft] = useState({ name: "", description: "" });
+  const [taskDetail, setTaskDetail] = useState(null);
+  const [taskDetailSubtasks, setTaskDetailSubtasks] = useState([]);
+  const [taskDetailComments, setTaskDetailComments] = useState([]);
+  const [taskDetailAttachments, setTaskDetailAttachments] = useState([]);
+  const [taskDetailActivity, setTaskDetailActivity] = useState([]);
+  const [taskDetailDraft, setTaskDetailDraft] = useState({ title: "", description: "", priority: "medium", startDate: "", dueDate: "" });
+  const [subtaskTitle, setSubtaskTitle] = useState("");
+  const [profileDraft, setProfileDraft] = useState({ name: "", email: "" });
+  const [profileNotice, setProfileNotice] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [timeFromDate, setTimeFromDate] = useState("");
+  const [timeToDate, setTimeToDate] = useState("");
+  const [reportTeamFilter, setReportTeamFilter] = useState("");
+  const [taskPageSearch, setTaskPageSearch] = useState("");
+  const [taskPageStatus, setTaskPageStatus] = useState("");
+  const [taskPagePriority, setTaskPagePriority] = useState("");
+  const [taskPageProject, setTaskPageProject] = useState("");
+  const [taskPageTitle, setTaskPageTitle] = useState("");
+  const [taskPageProjectId, setTaskPageProjectId] = useState("");
 
   const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -287,6 +419,34 @@ export default function App() {
 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const routeWorkspaceRole = workspaces.find((workspace) => String(workspace.id) === String(workspaceId))?.role;
+
+  function navigate(path, { replace = false } = {}) {
+    if (replace) window.history.replaceState({}, "", path);
+    else if (window.location.pathname !== path) window.history.pushState({}, "", path);
+    setPathname(path);
+    setError("");
+    setRouteError("");
+  }
+
+  function setActiveNav(nav) {
+    const paths = {
+      dashboard: "/dashboard", inbox: "/inbox", "my-work": "/my-work", projects: "/projects", timeline: "/timeline",
+      tasks: "/tasks", board: "/board", teams: "/teams", members: "/members",
+      calendar: "/calendar", reports: "/reports", time: "/time", settings: "/settings", profile: "/profile",
+    };
+    if (paths[nav]) navigate(paths[nav]);
+  }
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPathname(window.location.pathname || "/dashboard");
+      setRouteError("");
+    };
+    window.addEventListener("popstate", handlePopState);
+    if (window.location.pathname === "/") window.history.replaceState({}, "", "/dashboard");
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     if (!workspaceId) return undefined;
@@ -305,6 +465,201 @@ export default function App() {
       window.clearInterval(timer);
     };
   }, [workspaceId]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      localStorage.setItem("projectflow_theme", theme);
+    } catch {
+      // The selected theme remains active for this session when storage is unavailable.
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setShowCommandPalette((prev) => !prev);
+      }
+      if (e.key === "Escape") {
+        setShowCommandPalette(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const query = paletteQuery.trim();
+    if (!showCommandPalette || !workspaceId || !query) return undefined;
+    let current = true;
+    const timer = window.setTimeout(async () => {
+      setIsGlobalSearchLoading(true);
+      try {
+        const result = await apiRequest(`/workspaces/${workspaceId}/search?q=${encodeURIComponent(query)}`);
+        if (current) setGlobalSearchResults(result.results);
+      } catch (requestError) {
+        if (current) setRouteError(requestError.message);
+      } finally {
+        if (current) setIsGlobalSearchLoading(false);
+      }
+    }, 180);
+    return () => {
+      current = false;
+      window.clearTimeout(timer);
+    };
+  }, [showCommandPalette, paletteQuery, workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId || ["not-found", "projects", "teams", "members", "settings", "profile", "inbox"].includes(route.key)) return undefined;
+    let current = true;
+    const loadPageData = async () => {
+      setIsLoadingRoute(true);
+      setRouteError("");
+      try {
+        if (route.key === "my-work") {
+          const result = await apiRequest(`/workspaces/${workspaceId}/my-work`);
+          if (current) setMyWorkData(result.myWork || result);
+        } else if (["tasks", "board", "calendar"].includes(route.key)) {
+          const query = new URLSearchParams();
+          if (taskPageSearch.trim()) query.set("search", taskPageSearch.trim());
+          if (taskPageStatus) query.set("status", taskPageStatus);
+          if (taskPagePriority) query.set("priority", taskPagePriority);
+          if (taskPageProject) query.set("projectId", taskPageProject);
+          const result = await apiRequest(`/workspaces/${workspaceId}/tasks${query.size ? `?${query}` : ""}`);
+          if (current) setWorkspaceTasks(result.tasks);
+        } else if (route.key === "project-detail") {
+          setSelectedProjectId(route.id);
+          setProjectDetail(null);
+          const [projectResult, taskResult, activityResult] = await Promise.all([
+            apiRequest(`/workspaces/${workspaceId}/projects/${route.id}`),
+            apiRequest(`/workspaces/${workspaceId}/projects/${route.id}/tasks?search=`),
+            apiRequest(`/workspaces/${workspaceId}/activity?limit=50`),
+          ]);
+          if (current) {
+            setProjectDetail(projectResult.project);
+            setProjectMembers(projectResult.project.members || []);
+            setTasks(taskResult.tasks);
+            setActivityLog(activityResult.activity.filter((item) => item.resource_type === "project" && String(item.resource_id) === String(route.id)));
+          }
+        } else if (route.key === "timeline") {
+          const result = selectedProjectId ? await apiRequest(`/workspaces/${workspaceId}/projects/${selectedProjectId}/timeline`) : { tasks: [], milestones: [] };
+          if (current) {
+            setTimelineData({ tasks: result.tasks, milestones: result.milestones });
+          }
+        } else if (route.key === "task-detail") {
+          const [taskResult, subtasksResult, commentsResult, attachmentsResult, activityResult] = await Promise.all([
+            apiRequest(`/workspaces/${workspaceId}/tasks/${route.id}`),
+            apiRequest(`/workspaces/${workspaceId}/tasks/${route.id}/subtasks`),
+            apiRequest(`/workspaces/${workspaceId}/tasks/${route.id}/comments`),
+            apiRequest(`/workspaces/${workspaceId}/tasks/${route.id}/attachments`),
+            apiRequest(`/workspaces/${workspaceId}/activity?limit=100`),
+          ]);
+          if (current) {
+            setTaskDetail(taskResult.task);
+            setTaskDetailSubtasks(subtasksResult.subtasks);
+            setTaskDetailComments(commentsResult.comments);
+            setTaskDetailAttachments(attachmentsResult.attachments);
+            setTaskDetailActivity(activityResult.activity.filter((item) => item.resource_type === "task" && String(item.resource_id) === String(route.id)));
+            setTaskDetailDraft({ title: taskResult.task.title || "", description: taskResult.task.description || "", priority: taskResult.task.priority || "medium", startDate: taskResult.task.start_date ? String(taskResult.task.start_date).slice(0, 10) : "", dueDate: taskResult.task.due_date ? String(taskResult.task.due_date).slice(0, 10) : "" });
+          }
+        } else if (route.key === "team-detail") {
+          setTeamDetail(null);
+          const [teamResult, membersResult, taskResult, productivityResult] = await Promise.all([
+            apiRequest(`/workspaces/${workspaceId}/teams/${route.id}`),
+            apiRequest(`/workspaces/${workspaceId}/teams/${route.id}/members`),
+            apiRequest(`/workspaces/${workspaceId}/tasks`),
+            apiRequest(`/workspaces/${workspaceId}/teams/${route.id}/productivity`),
+          ]);
+          if (current) {
+            setTeamDetail(teamResult.team);
+            setTeamDetailDraft({ name: teamResult.team.name || "", description: teamResult.team.description || "" });
+            setSelectedTeamId(route.id);
+            setTeamMembers(membersResult.members);
+            setWorkspaceTasks(taskResult.tasks);
+            setTeamProductivity([{ team: teams.find((item) => String(item.id) === String(route.id)) || teamResult.team, result: productivityResult }]);
+          }
+        } else if (route.key === "reports") {
+          const [organizationResult, projectResult, teamResults] = await Promise.all([
+            selectedOrganizationId ? apiRequest(`/organizations/${selectedOrganizationId}/analytics`) : Promise.resolve(null),
+            selectedProjectId ? apiRequest(`/workspaces/${workspaceId}/projects/${selectedProjectId}/analytics`) : Promise.resolve(null),
+            Promise.all(teams.map(async (team) => ({
+              team,
+              result: await apiRequest(`/workspaces/${workspaceId}/teams/${team.id}/productivity`),
+            }))),
+          ]);
+          if (current) {
+            setOrganizationAnalytics(organizationResult);
+            setProjectAnalytics(projectResult);
+            setTeamProductivity(teamResults);
+            setShowAnalytics(true);
+          }
+        } else if (route.key === "time") {
+          const timeQuery = new URLSearchParams();
+          if (timeFromDate) timeQuery.set("fromDate", timeFromDate);
+          if (timeToDate) timeQuery.set("toDate", timeToDate);
+          const [reportResult, activeResult, taskResult] = await Promise.all([
+            apiRequest(`/workspaces/${workspaceId}/time-reports${timeQuery.size ? `?${timeQuery}` : ""}`),
+            apiRequest(`/workspaces/${workspaceId}/time-entries/active`),
+            apiRequest(`/workspaces/${workspaceId}/tasks`),
+          ]);
+          if (current) {
+            setTimeReports(reportResult);
+            setActiveWorkspaceTimer(activeResult.activeTimers[0] || null);
+            setWorkspaceTasks(taskResult.tasks);
+            setShowTimeReports(true);
+          }
+        } else if (route.key === "dashboard" && !["employee", "viewer"].includes(routeWorkspaceRole)) {
+          const result = await apiRequest(`/workspaces/${workspaceId}/workload`);
+          if (current) setWorkload(result.workload);
+        } else if (route.key === "dashboard") {
+          const result = await apiRequest(`/workspaces/${workspaceId}/my-work`);
+          if (current) setMyWorkData(result.myWork || result);
+        }
+      } catch (requestError) {
+        if (current) setRouteError(requestError.message);
+      } finally {
+        if (current) setIsLoadingRoute(false);
+      }
+    };
+    loadPageData();
+    return () => { current = false; };
+  }, [route.key, route.id, workspaceId, selectedOrganizationId, selectedProjectId, workspaces, routeWorkspaceRole, teams, taskPageSearch, taskPageStatus, taskPagePriority, taskPageProject, timeFromDate, timeToDate, user]);
+
+  const myAssignedTasks = useMemo(() => {
+    if (!user || !tasks) return [];
+    return tasks.filter((t) => String(t.assignee_id) === String(user.id));
+  }, [tasks, user]);
+
+  const myOverdueTasks = useMemo(() => {
+    const today = dateKey(new Date());
+    return myAssignedTasks.filter(
+      (t) => t.due_date && String(t.due_date).slice(0, 10) < today && t.status !== "completed"
+    );
+  }, [myAssignedTasks]);
+
+  const myDueTodayTasks = useMemo(() => {
+    const today = dateKey(new Date());
+    return myAssignedTasks.filter(
+      (t) => t.due_date && String(t.due_date).slice(0, 10) === today && t.status !== "completed"
+    );
+  }, [myAssignedTasks]);
+
+  const myCompletedTasks = useMemo(() => {
+    return myAssignedTasks.filter((t) => t.status === "completed");
+  }, [myAssignedTasks]);
+
+  function getProjectHealth(project) {
+    const projTasks = tasks.filter((t) => String(t.project_id) === String(project.id));
+    if (projTasks.length === 0) return { label: "On Track", color: "var(--success)" };
+    const completed = projTasks.filter((t) => t.status === "completed").length;
+    const rate = completed / projTasks.length;
+    const today = dateKey(new Date());
+    const isPastDeadline = project.deadline && String(project.deadline).slice(0, 10) < today && rate < 1;
+    if (isPastDeadline) return { label: "Delayed", color: "var(--danger)" };
+    if (rate >= 0.6) return { label: "On Track", color: "var(--success)" };
+    return { label: "At Risk", color: "var(--warning)" };
+  }
 
   // ==============================
   // LOAD WORKSPACE
@@ -349,6 +704,7 @@ export default function App() {
       const firstProject = workspaceProjects.projects[0];
 
       setSelectedProjectId(firstProject?.id ?? null);
+      setTaskPageProjectId(firstProject?.id ? String(firstProject.id) : "");
 
       if (firstProject) {
         await refreshTasks(firstProject.id, id);
@@ -408,6 +764,85 @@ export default function App() {
       const result = await apiRequest(`/workspaces/${workspaceId}/notifications/${notification.id}/read`, { method: "PATCH" });
       setNotifications((current) => current.map((item) => String(item.id) === String(notification.id) ? result.notification : item));
     } catch (requestError) { setError(requestError.message); }
+  }
+
+  async function markAllNotificationsRead() {
+    await runAction(async () => {
+      const result = await apiRequest(`/workspaces/${workspaceId}/notifications/read-all`, { method: "POST" });
+      setNotifications(result.notifications || notifications.map((item) => ({ ...item, is_read: true })));
+    });
+  }
+
+  async function deleteNotification(notification) {
+    await runAction(async () => {
+      await apiRequest(`/workspaces/${workspaceId}/notifications/${notification.id}`, { method: "DELETE" });
+      setNotifications((current) => current.filter((item) => String(item.id) !== String(notification.id)));
+    });
+  }
+
+  async function saveProfile(event) {
+    event.preventDefault();
+    setProfileNotice("");
+    await runAction(async () => {
+      const result = await apiRequest("/auth/me", { method: "PATCH", body: { name: profileDraft.name.trim() } });
+      setUser(result.user);
+      setProfileNotice("Profile saved.");
+    });
+  }
+
+  async function changeAccountPassword(event) {
+    event.preventDefault();
+    setProfileNotice("");
+    await runAction(async () => {
+      const result = await apiRequest("/auth/password/change", { method: "POST", body: { currentPassword, newPassword } });
+      setCurrentPassword("");
+      setNewPassword("");
+      setProfileNotice(result.message || "Password changed.");
+    });
+  }
+
+  async function updateWorkspaceTask(task, body) {
+    await runAction(async () => {
+      const result = await apiRequest(`/workspaces/${workspaceId}/tasks/${task.id}`, { method: "PATCH", body });
+      setWorkspaceTasks((current) => current.map((item) => String(item.id) === String(task.id) ? { ...item, ...result.task } : item));
+      setTasks((current) => current.map((item) => String(item.id) === String(task.id) ? { ...item, ...result.task } : item));
+      if (String(taskDetail?.id) === String(task.id)) setTaskDetail((current) => ({ ...current, ...result.task }));
+      if (route.key === "my-work") {
+        const refreshed = await apiRequest(`/workspaces/${workspaceId}/my-work`);
+        setMyWorkData(refreshed.myWork || refreshed);
+      }
+    });
+  }
+
+  async function createWorkspaceTask(event) {
+    event.preventDefault();
+    if (!taskPageTitle.trim() || !taskPageProjectId) return;
+    await runAction(async () => {
+      const result = await apiRequest(`/workspaces/${workspaceId}/tasks`, {
+        method: "POST",
+        body: { title: taskPageTitle.trim(), projectId: Number(taskPageProjectId), status: "todo", priority: "medium" },
+      });
+      setTaskPageTitle("");
+      setWorkspaceTasks((current) => [result.task, ...current]);
+    });
+  }
+
+  async function addProjectMember(event) {
+    event.preventDefault();
+    if (!workspaceId || !projectDetail?.id || !selectedTeamMemberId) return;
+    await runAction(async () => {
+      await apiRequest(`/workspaces/${workspaceId}/projects/${projectDetail.id}/members`, { method: "POST", body: { userId: Number(selectedTeamMemberId) } });
+      const result = await apiRequest(`/workspaces/${workspaceId}/projects/${projectDetail.id}/members`);
+      setProjectMembers(result.members);
+      setSelectedTeamMemberId("");
+    });
+  }
+
+  async function removeProjectMember(member) {
+    await runAction(async () => {
+      await apiRequest(`/workspaces/${workspaceId}/projects/${projectDetail.id}/members/${member.user_id}`, { method: "DELETE" });
+      setProjectMembers((current) => current.filter((item) => String(item.user_id) !== String(member.user_id)));
+    });
   }
 
   async function updateNotificationPreference(field, enabled) {
@@ -522,6 +957,7 @@ export default function App() {
     try {
       const me = await apiRequest("/auth/me");
       setUser(me.user);
+      setProfileDraft({ name: me.user.name || "", email: me.user.email || "" });
 
       const inviteToken = new URLSearchParams(window.location.search).get("invite");
       if (inviteToken) {
@@ -728,6 +1164,33 @@ export default function App() {
     });
   }
 
+  async function removeTeamMember(member) {
+    await runAction(async () => {
+      await apiRequest(`/workspaces/${workspaceId}/teams/${selectedTeamId}/members/${member.id}`, { method: "DELETE" });
+      const result = await loadTeamMembers(selectedTeamId);
+      setTeams((current) => current.map((team) => String(team.id) === String(selectedTeamId) ? { ...team, member_count: result.members.length } : team));
+    });
+  }
+
+  async function saveTeamDetails(event) {
+    event.preventDefault();
+    if (!teamDetailDraft.name.trim() || !teamDetail) return;
+    await runAction(async () => {
+      const result = await apiRequest(`/workspaces/${workspaceId}/teams/${teamDetail.id}`, { method: "PATCH", body: { name: teamDetailDraft.name.trim(), description: teamDetailDraft.description.trim() || null } });
+      setTeamDetail(result.team);
+      setTeams((current) => current.map((team) => String(team.id) === String(result.team.id) ? { ...team, ...result.team } : team));
+    });
+  }
+
+  async function deleteTeam(team) {
+    return runAction(async () => {
+      await apiRequest(`/workspaces/${workspaceId}/teams/${team.id}`, { method: "DELETE" });
+      setTeams((current) => current.filter((item) => String(item.id) !== String(team.id)));
+      navigate("/teams");
+      return true;
+    });
+  }
+
   async function deleteWorkspace(workspace) {
     return runAction(async () => {
       await apiRequest(`/workspaces/${workspace.id}`, { method: "DELETE" });
@@ -795,6 +1258,7 @@ export default function App() {
       ]);
 
       setSelectedProjectId(result.project.id);
+      setTaskPageProjectId(String(result.project.id));
       setProjectName("");
 
       await refreshTasks(result.project.id);
@@ -930,6 +1394,7 @@ export default function App() {
     try {
       const result = await apiRequest(`/workspaces/${workspaceId}/tasks/${task.id}/attachments`);
       setTaskAttachments((current) => ({ ...current, [task.id]: result.attachments }));
+      if (String(route.id) === String(task.id) && route.key === "task-detail") setTaskDetailAttachments(result.attachments);
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -982,6 +1447,9 @@ export default function App() {
         ...current,
         [task.id]: current[task.id].filter((item) => String(item.id) !== String(attachment.id)),
       }));
+      if (route.key === "task-detail" && String(route.id) === String(task.id)) {
+        setTaskDetailAttachments((current) => current.filter((item) => String(item.id) !== String(attachment.id)));
+      }
     });
   }
 
@@ -1225,7 +1693,9 @@ export default function App() {
         ? await deleteWorkspace(item)
         : type === "project"
           ? await deleteProject(item)
-          : await deleteTask(item);
+          : type === "team"
+            ? await deleteTeam(item)
+            : await deleteTask(item);
     if (deleted) setDeleteConfirmation(null);
   }
 
@@ -1282,12 +1752,15 @@ export default function App() {
       ? calendarTeamRoster.members
       : [];
   const calendarTeamMemberIds = new Set(currentCalendarTeamRoster.map((member) => String(member.id)));
-  const calendarTasks = tasks.filter((task) =>
+  const calendarTaskSource = route.key === "calendar" ? workspaceTasks : tasks;
+  const calendarTasks = calendarTaskSource.filter((task) =>
     (!calendarAssigneeFilter || String(task.assignee_id || "") === calendarAssigneeFilter) &&
     (!calendarTeamFilter || calendarTeamMemberIds.has(String(task.assignee_id || "")))
   );
   const calendarTitle = calendarPeriod === "day"
     ? calendarCursor.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+    : calendarPeriod === "agenda"
+      ? `${calendarDays[0].toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${calendarDays.at(-1).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
     : calendarPeriod === "week"
       ? `${calendarDays[0].toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${calendarDays[6].toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
       : calendarCursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
@@ -1335,10 +1808,13 @@ export default function App() {
 
       {/* SIDEBAR */}
 
-      <aside className="sidebar">
+      <aside className={`sidebar ${isSidebarCollapsed ? "collapsed" : ""}`}>
         <div className="brand">
           <div className="brand-mark">p</div>
           <span>projectflow</span>
+          <button className="sidebar-collapse-button" type="button" onClick={() => setIsSidebarCollapsed((current) => !current)} aria-label={isSidebarCollapsed ? "Expand navigation" : "Collapse navigation"} title={isSidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>
+            {isSidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
         </div>
 
         <div className="workspace-label">ORGANIZATION</div>
@@ -1453,6 +1929,180 @@ export default function App() {
           )
         )}
 
+        <div className="sidebar-section-title">NAVIGATION</div>
+        <nav className="sidebar-nav" aria-label="Main Navigation">
+          <button
+            className={`sidebar-nav-item ${activeNav === "dashboard" ? "active" : ""}`}
+            type="button"
+            title="Dashboard"
+            onClick={() => {
+              setActiveNav("dashboard");
+              setBoardMode(false);
+              setCalendarMode(false);
+              setTimelineMode(false);
+            }}
+          >
+            <LayoutDashboard size={16} />
+            <span>Dashboard</span>
+          </button>
+
+          <button className={`sidebar-nav-item ${activeNav === "inbox" ? "active" : ""}`} type="button" title="Inbox" onClick={() => setActiveNav("inbox")}>
+            <Mail size={16} /><span>Inbox</span>
+            {notifications.filter((item) => !item.is_read).length > 0 && <span className="badge">{notifications.filter((item) => !item.is_read).length}</span>}
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeNav === "my-work" ? "active" : ""}`}
+            type="button"
+            title="My Work"
+            onClick={() => {
+              setActiveNav("my-work");
+              setBoardMode(false);
+              setCalendarMode(false);
+              setTimelineMode(false);
+            }}
+          >
+            <CheckSquare size={16} />
+            <span>My Work</span>
+            {myOverdueTasks.length > 0 && <span className="badge" style={{ backgroundColor: "var(--danger)" }}>{myOverdueTasks.length}</span>}
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeNav === "projects" ? "active" : ""}`}
+            type="button"
+            title="Projects"
+            onClick={() => {
+              setActiveNav("projects");
+              setBoardMode(false);
+              setCalendarMode(false);
+              setTimelineMode(false);
+            }}
+          >
+            <FolderKanban size={16} />
+            <span>Projects</span>
+            <span className="badge" style={{ backgroundColor: "var(--brand)" }}>{projects.length}</span>
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeNav === "tasks" ? "active" : ""}`}
+            type="button"
+            title="Tasks"
+            onClick={() => {
+              setActiveNav("tasks");
+              setBoardMode(false);
+              setCalendarMode(false);
+              setTimelineMode(false);
+            }}
+          >
+            <ListTodo size={16} />
+            <span>Tasks</span>
+            <span className="badge" style={{ backgroundColor: "var(--sidebar-hover)" }}>{tasks.length}</span>
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeNav === "board" ? "active" : ""}`}
+            type="button"
+            title="Kanban Board"
+            onClick={() => {
+              setActiveNav("board");
+              setBoardMode(true);
+              setCalendarMode(false);
+              setTimelineMode(false);
+            }}
+          >
+            <Columns3 size={16} />
+            <span>Kanban Board</span>
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeNav === "calendar" ? "active" : ""}`}
+            type="button"
+            title="Calendar"
+            onClick={() => {
+              setActiveNav("calendar");
+              setCalendarMode(true);
+              setBoardMode(false);
+              setTimelineMode(false);
+            }}
+          >
+            <CalendarIcon size={16} />
+            <span>Calendar</span>
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeNav === "timeline" ? "active" : ""}`}
+            type="button"
+            title="Timeline"
+            onClick={() => {
+              setActiveNav("timeline");
+              showTimeline();
+            }}
+          >
+            <Milestone size={16} />
+            <span>Timeline</span>
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeNav === "teams" ? "active" : ""}`}
+            type="button"
+            title="Teams and Members"
+            onClick={() => {
+              setActiveNav("teams");
+              setBoardMode(false);
+              setCalendarMode(false);
+              setTimelineMode(false);
+            }}
+          >
+            <Users size={16} />
+            <span>Teams & Members</span>
+          </button>
+
+          <button className={`sidebar-nav-item ${activeNav === "members" ? "active" : ""}`} type="button" title="Members" onClick={() => setActiveNav("members")}>
+            <Contact size={16} /><span>Members</span><span className="badge">{workspaceMembers.length}</span>
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeNav === "reports" ? "active" : ""}`}
+            type="button"
+            title="Reports and Analytics"
+            onClick={() => {
+              setActiveNav("reports");
+              if (!showAnalytics && workspaceId && selectedOrganizationId) toggleAnalytics();
+            }}
+          >
+            <BarChart3 size={16} />
+            <span>Reports & Analytics</span>
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeNav === "time" ? "active" : ""}`}
+            type="button"
+            title="Time Tracking"
+            onClick={() => {
+              setActiveNav("time");
+              if (!showTimeReports) toggleTimeReports();
+            }}
+          >
+            <Clock size={16} />
+            <span>Time Tracking</span>
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeNav === "settings" ? "active" : ""}`}
+            type="button"
+            title="Settings"
+            onClick={() => {
+              setActiveNav("settings");
+            }}
+          >
+            <SettingsIcon size={16} />
+            <span>Settings</span>
+          </button>
+          <button className={`sidebar-nav-item ${activeNav === "profile" ? "active" : ""}`} type="button" title="My Profile" onClick={() => setActiveNav("profile")}>
+            <UserRound size={16} /><span>My Profile</span>
+          </button>
+        </nav>
+
         <div className="sidebar-bottom">
           <div className="profile">
             <div className="profile-avatar">
@@ -1480,11 +2130,76 @@ export default function App() {
 
         <header className="topbar">
           <div className="breadcrumb">
-            <strong>Workspace dashboard</strong>
+            <Building2 size={16} color="var(--text-muted)" />
+            <span>{selectedOrganization?.name || "Organization"}</span>
+            <span style={{ color: "var(--border)" }}>/</span>
+            <Briefcase size={16} color="var(--brand)" />
+            <strong>{selectedWorkspace?.name || "Workspace"}</strong>
+            <span style={{ color: "var(--border)" }}>/</span>
+            <span style={{ textTransform: "capitalize", color: "var(--text-secondary)" }}>
+              {route.title}
+            </span>
           </div>
           <div className="topbar-actions">
+            {activeWorkspaceTimer && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "4px 10px",
+                  backgroundColor: "var(--success-bg)",
+                  border: "1px solid rgba(16, 185, 129, 0.2)",
+                  borderRadius: "var(--radius-full)",
+                  fontSize: "12px",
+                  color: "var(--success-text)",
+                  fontWeight: 600,
+                }}
+              >
+                <span
+                  style={{
+                    width: "8px",
+                    height: "8px",
+                    borderRadius: "50%",
+                    backgroundColor: "var(--success)",
+                  }}
+                />
+                <span>Timer: {activeWorkspaceTimer.task_title}</span>
+                <button
+                  type="button"
+                  className="text-button danger-button"
+                  style={{ padding: "0 4px", fontSize: "11px" }}
+                  onClick={() => stopTaskTimer({ id: activeWorkspaceTimer.task_id }, activeWorkspaceTimer)}
+                >
+                  Stop
+                </button>
+              </div>
+            )}
+
+            <button
+              className="search-command-btn"
+              type="button"
+              onClick={() => setShowCommandPalette(true)}
+              aria-label="Search or run command"
+            >
+              <Search size={14} />
+              <span>Search or jump to...</span>
+              <kbd>⌘K</kbd>
+            </button>
+
+            <button
+              className="icon-btn"
+              type="button"
+              onClick={() => setTheme((curr) => (curr === "dark" ? "light" : "dark"))}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              aria-label="Toggle color theme"
+            >
+              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+
             <button className="secondary-button inbox-toggle" type="button" aria-expanded={showInbox} onClick={() => setShowInbox((current) => !current)}>
-              Inbox{notifications.filter((item) => !item.is_read).length > 0 ? ` · ${notifications.filter((item) => !item.is_read).length}` : ""}
+              <Bell size={14} />
+              <span>Inbox</span>{notifications.filter((item) => !item.is_read).length > 0 ? ` · ${notifications.filter((item) => !item.is_read).length}` : ""}
             </button>
             {showInbox && <section className="inbox-panel" aria-label="Notification inbox">
               <header><strong>Inbox</strong><button className="text-button" type="button" onClick={() => setShowInbox(false)}>Close</button></header>
@@ -1514,17 +2229,17 @@ export default function App() {
           </div>
         </header>
 
-        <section className="page-container">
+        <section className="page-container" data-page={route.key}>
 
           {/* PAGE HEADING */}
 
           <div className="page-heading">
             <div>
-              <div className="eyebrow">
-                WORKSPACE OVERVIEW
-              </div>
-
-              <h1>Good work starts here.</h1>
+              <div className="eyebrow">{selectedWorkspace?.name || "PROJECTFLOW WORKSPACE"}</div>
+              <h1>{route.key === "my-work" ? `Your day, ${user.name?.split(" ")[0] || "teammate"}.` : route.key === "dashboard" ? `${({ owner: "Admin", admin: "Admin", manager: "Manager", employee: "Employee", viewer: "Workspace" })[selectedWorkspace?.role] || "Workspace"} dashboard` : route.title}</h1>
+              <p className="route-description">{({
+                dashboard: "A live view of delivery and team health.", inbox: "Updates and mentions from your workspace.", "my-work": "Your assignments, due dates, and daily priorities.", projects: "Plan and track work across your projects.", "project-detail": projectDetail?.description || "Project plan, delivery, and people.", tasks: "Tasks you can access across this workspace.", "task-detail": "Task details and collaboration.", board: "Move work through each delivery stage.", teams: "Teams and their workspace membership.", "team-detail": teamDetail?.description || "Team roster and delivery overview.", members: "People who can access this workspace.", calendar: "Task start dates and deadlines.", timeline: "Milestones and project schedule.", reports: "Workspace and team performance from recorded activity.", time: "Active timers and recorded project time.", settings: "Workspace, organization, notifications, and appearance.", profile: "Your personal account details and security.",
+              })[route.key] || ""}</p>
             </div>
           </div>
 
@@ -1532,6 +2247,66 @@ export default function App() {
             <p className="form-error">{error}</p>
           )}
           {notice && <p className="form-notice" role="status">{notice}</p>}
+          {routeError && <p className="form-error" role="alert">{routeError}</p>}
+          {isLoadingRoute && <p className="loading-message" role="status">Loading {route.title.toLowerCase()}…</p>}
+          {route.key === "not-found" && <section className="content-panel not-found-panel"><h2>That page isn’t here</h2><p>Choose a workspace page from the navigation.</p><button className="primary-button" type="button" onClick={() => navigate("/dashboard")}>Go to dashboard</button></section>}
+
+          {route.key === "inbox" && <section className="content-panel route-inbox-page">
+            <div className="section-heading"><div><h2>Notifications</h2><p>Assignments, mentions, and deadline updates.</p></div><button className="secondary-button" type="button" disabled={isSaving || notifications.every((item) => item.is_read)} onClick={markAllNotificationsRead}>Mark all as read</button></div>
+            <div className="notification-preferences">{[["assignment_enabled", "assignmentEnabled", "Assignments"], ["mention_enabled", "mentionEnabled", "Mentions"], ["due_date_enabled", "dueDateEnabled", "Due-date reminders"]].map(([column, field, label]) => <label key={column}><input type="checkbox" checked={notificationPreferences[column]} onChange={(event) => updateNotificationPreference(field, event.target.checked)} />{label}</label>)}</div>
+            {notifications.length === 0 ? <p className="empty-state">You’re all caught up.</p> : <div className="notification-list">{notifications.map((notification) => <article className={`notification-row ${notification.is_read ? "read" : "unread"}`} key={notification.id}><button type="button" className="notification-open" onClick={() => markNotificationRead(notification)}><strong>{notification.message}</strong><time>{new Date(notification.created_at).toLocaleString()}</time></button><button className="text-button danger-button" type="button" aria-label={`Delete notification: ${notification.message}`} onClick={() => deleteNotification(notification)}>Delete</button></article>)}</div>}
+          </section>}
+
+          {route.key === "my-work" && <section className="content-panel route-my-work-page"><div className="section-heading"><div><h2>My priorities</h2><p>Live assignments from your workspace.</p></div></div>
+            <div className="my-day-stats"><article><span>Overdue</span><strong>{myWorkData?.stats?.overdue ?? 0}</strong></article><article><span>Due today</span><strong>{myWorkData?.stats?.dueToday ?? 0}</strong></article><article><span>Upcoming</span><strong>{myWorkData?.stats?.upcoming ?? 0}</strong></article></div>
+            {!myWorkData?.tasks?.length ? <p className="empty-state">No tasks are assigned to you yet.</p> : <div className="route-task-list">{myWorkData.tasks.map((task) => <article className="route-task-row" key={task.id}><div><button className="task-title-link" type="button" onClick={() => navigate(`/tasks/${task.id}`)}>{task.title}</button><small>{task.project_name} · {task.due_date ? `Due ${dateOnly(task.due_date)?.toLocaleDateString()}` : "No due date"}</small></div><select aria-label={`Status for ${task.title}`} value={task.status} disabled={isSaving || selectedWorkspace?.role === "viewer"} onChange={(event) => updateWorkspaceTask(task, { status: event.target.value })}><option value="todo">To do</option><option value="in_progress">In progress</option><option value="in_review">In review</option><option value="completed">Completed</option></select></article>)}</div>}
+          </section>}
+
+          {route.key === "members" && <section className="content-panel route-members-page"><div className="section-heading"><div><h2>Workspace members</h2><p>{workspaceMembers.length} people with access to this workspace.</p></div></div>
+            {workspaceMembers.length === 0 ? <p className="empty-state">No workspace members found.</p> : <div className="member-directory">{workspaceMembers.map((member) => <article className="member-card" key={member.id}><span className="member-avatar">{member.name?.slice(0, 1)}</span><div><strong>{member.name}</strong><small>{member.email}</small></div><span className="role-badge">{member.role}</span></article>)}</div>}
+            {selectedWorkspace && ["owner", "admin"].includes(selectedWorkspace.role) && <form className="member-invite-form" onSubmit={createInvitation}><h3>Invite someone</h3><input type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="name@company.com" aria-label="Member email" required /><select aria-label="Member role" value={inviteRole} onChange={(event) => setInviteRole(event.target.value)}><option value="employee">Employee</option><option value="manager">Manager</option><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button className="primary-button" type="submit" disabled={isSaving}>Create invitation</button>{inviteUrl && <a href={inviteUrl} target="_blank" rel="noreferrer">Open invitation</a>}</form>}
+            {selectedOrganization && <div className="organization-members-section"><h2>Organization access</h2><p>People and invitations shared across the organization.</p>{organizationMembers.map((member) => <article className="member-card" key={`org-${member.id}`}><span className="member-avatar">{member.name?.slice(0, 1)}</span><div><strong>{member.name}</strong><small>{member.email}</small></div><span className="role-badge">{member.role}</span>{["owner", "admin"].includes(selectedOrganization.role) && member.role !== "owner" && String(member.id) !== String(user.id) && <button className="text-button danger-button" type="button" onClick={() => removeOrganizationMember(member)} disabled={isSaving}>Remove</button>}</article>)}
+              {["owner", "admin"].includes(selectedOrganization.role) && <><form className="member-invite-form" onSubmit={inviteOrganizationMember}><h3>Invite to organization</h3><input type="email" aria-label="Organization member email" value={organizationInviteEmail} onChange={(event) => setOrganizationInviteEmail(event.target.value)} placeholder="teammate@company.com" required /><select aria-label="Organization role" value={organizationInviteRole} onChange={(event) => setOrganizationInviteRole(event.target.value)}><option value="employee">Employee</option><option value="manager">Manager</option></select><button className="primary-button" type="submit" disabled={isSaving}>Send invite</button>{organizationInviteUrl && <input aria-label="Organization invitation link" value={organizationInviteUrl} readOnly onFocus={(event) => event.target.select()} />}</form><h3>Pending invitations</h3>{organizationInvitations.map((invitation) => <article className="member-card" key={`invitation-${invitation.id}`}><div><strong>{invitation.email}</strong><small>{invitation.role} · {invitation.status}</small></div>{invitation.status === "pending" && <><button className="text-button" type="button" onClick={() => manageOrganizationInvitation(invitation, "resend")} disabled={isSaving}>Resend</button><button className="text-button danger-button" type="button" onClick={() => manageOrganizationInvitation(invitation, "revoke")} disabled={isSaving}>Revoke</button></>}</article>)}</>}
+            </div>}
+          </section>}
+
+          {route.key === "project-detail" && <section className="content-panel project-detail-panel">
+            {!projectDetail ? <p className="empty-state">Project details are loading…</p> : <>
+              <div className="section-heading"><div><h2>{projectDetail.name}</h2><p>{projectDetail.description || "No project description has been added."}</p></div><span className="project-health"><i />{projectDetail.status || "Active"}</span></div>
+              <div className="project-detail-summary"><article><span>Progress</span><strong>{projectDetail.progress_percentage ?? 0}%</strong></article><article><span>Tasks</span><strong>{projectDetail.task_count ?? tasks.length}</strong></article><article><span>Completed</span><strong>{projectDetail.completed_task_count ?? tasks.filter((task) => task.status === "completed").length}</strong></article><article><span>Manager</span><strong>{projectDetail.manager_name || "Unassigned"}</strong></article></div>
+              <nav className="route-tabs" aria-label="Project sections">{[["overview", "Overview"], ["tasks", "Tasks"], ["board", "Board"], ["members", "Members"], ["activity", "Activity"]].map(([key, label]) => <button type="button" className={projectDetailTab === key ? "active" : ""} key={key} onClick={() => setProjectDetailTab(key)}>{label}</button>)}</nav>
+              {projectDetailTab === "overview" && <div className="project-overview-grid"><div><h3>Delivery progress</h3><progress max="100" value={projectDetail.progress_percentage ?? 0} aria-label="Project completion" /><p>{tasks.filter((task) => task.status !== "completed").length} open tasks · {tasks.filter((task) => task.status === "completed").length} completed</p></div><div><h3>Upcoming work</h3>{tasks.filter((task) => task.status !== "completed").slice(0, 5).map((task) => <p key={task.id}><button className="task-title-link" type="button" onClick={() => navigate(`/tasks/${task.id}`)}>{task.title}</button> <small>{task.due_date ? dateOnly(task.due_date)?.toLocaleDateString() : "Unscheduled"}</small></p>)}</div></div>}
+              {projectDetailTab === "tasks" && <div className="route-task-list">{tasks.map((task) => <article className="route-task-row" key={task.id}><div><button className="task-title-link" type="button" onClick={() => navigate(`/tasks/${task.id}`)}>{task.title}</button><small>{task.assignee_name || "Unassigned"} · {task.priority}</small></div><span className="role-badge">{task.status.replaceAll("_", " ")}</span></article>)}</div>}
+              {projectDetailTab === "board" && <div className="project-detail-board">{["todo", "in_progress", "in_review", "completed"].map((status) => <section key={status}><h3>{status.replaceAll("_", " ")}</h3>{tasks.filter((task) => task.status === status).map((task) => <button type="button" key={task.id} onClick={() => navigate(`/tasks/${task.id}`)}>{task.title}</button>)}</section>)}</div>}
+              {projectDetailTab === "members" && <><div className="member-directory">{projectMembers.map((member) => <article className="member-card" key={member.user_id}><span className="member-avatar">{member.name?.slice(0, 1)}</span><div><strong>{member.name}</strong><small>{member.email}</small></div><span className="role-badge">{member.role}</span>{["owner", "admin", "manager"].includes(selectedWorkspace?.role) && <button className="text-button danger-button" type="button" onClick={() => removeProjectMember(member)} disabled={isSaving}>Remove</button>}</article>)}</div>{["owner", "admin", "manager"].includes(selectedWorkspace?.role) && <form className="member-invite-form" onSubmit={addProjectMember}><h3>Add project member</h3><select aria-label="Workspace member to add" value={selectedTeamMemberId} onChange={(event) => setSelectedTeamMemberId(event.target.value)} required><option value="">Choose a member</option>{workspaceMembers.filter((member) => !projectMembers.some((projectMember) => String(projectMember.user_id) === String(member.id))).map((member) => <option key={member.id} value={member.id}>{member.name} · {member.email}</option>)}</select><button className="primary-button" type="submit" disabled={isSaving}>Add member</button></form>}</>}
+              {projectDetailTab === "activity" && (activityLog.length ? activityLog.map((item) => <article className="activity-item" key={item.id}><span className="activity-dot" /><p><strong>{item.actor_name || "A teammate"}</strong> {item.action} {item.details?.title || "this project"}</p><time>{new Date(item.created_at).toLocaleString()}</time></article>) : <p className="empty-state">No project-specific activity has been recorded.</p>)}
+            </>}
+          </section>}
+
+          {route.key === "team-detail" && <section className="content-panel team-detail-panel"><div className="section-heading"><div><h2>{teamDetail?.name || "Team"}</h2><p>{teamDetail?.description || "Team members and assigned workspace work."}</p></div></div><div className="project-detail-summary"><article><span>Members</span><strong>{teamMembers.length}</strong></article><article><span>Manager</span><strong>{teams.find((team) => String(team.id) === String(route.id))?.manager_name || "Not assigned"}</strong></article><article><span>Open assignments</span><strong>{workspaceTasks.filter((task) => teamMembers.some((member) => String(member.id) === String(task.assignee_id)) && task.status !== "completed").length}</strong></article></div><h3>Team roster</h3>{teamMembers.length ? <div className="member-directory">{teamMembers.map((member) => <article className="member-card" key={member.id}><span className="member-avatar">{member.name?.slice(0, 1)}</span><div><strong>{member.name}</strong><small>{member.email}</small></div><span className="role-badge">{member.role}</span></article>)}</div> : <p className="empty-state">No members are assigned to this team.</p>}<h3>Assigned work</h3>{workspaceTasks.filter((task) => teamMembers.some((member) => String(member.id) === String(task.assignee_id))).slice(0, 10).map((task) => <article className="route-task-row" key={task.id}><div><button className="task-title-link" type="button" onClick={() => navigate(`/tasks/${task.id}`)}>{task.title}</button><small>{task.project_name}</small></div><span className="role-badge">{task.status.replaceAll("_", " ")}</span></article>)}</section>}
+
+          {route.key === "team-detail" && ["owner", "admin", "manager"].includes(selectedWorkspace?.role) && <section className="content-panel team-controls-page">
+            <div className="section-heading"><div><h2>Manage team</h2><p>Team administration for workspace managers.</p></div><button className="text-button danger-button" type="button" onClick={() => setDeleteConfirmation({ type: "team", item: teamDetail })} disabled={!teamDetail || isSaving}>Delete team</button></div>
+            <form className="profile-settings-form" onSubmit={saveTeamDetails}><label>Team name<input value={teamDetailDraft.name} onChange={(event) => setTeamDetailDraft((current) => ({ ...current, name: event.target.value }))} required /></label><label>Description<textarea value={teamDetailDraft.description} onChange={(event) => setTeamDetailDraft((current) => ({ ...current, description: event.target.value }))} rows="3" /></label><button className="primary-button" type="submit" disabled={isSaving || !teamDetailDraft.name.trim()}>Save team</button></form>
+            <form className="member-invite-form" onSubmit={addTeamMember}><h3>Add a team member</h3><select aria-label="Workspace member to add to team" value={selectedTeamMemberId} onChange={(event) => setSelectedTeamMemberId(event.target.value)} required><option value="">Choose a workspace member</option>{workspaceMembers.filter((member) => !teamMembers.some((current) => String(current.id) === String(member.id))).map((member) => <option key={member.id} value={member.id}>{member.name} · {member.email}</option>)}</select><button className="secondary-button" type="submit" disabled={isSaving || !selectedTeamMemberId}>Add member</button></form>
+            <h3>Team member access</h3>{teamMembers.map((member) => <article className="member-card" key={`team-manage-${member.id}`}><span className="member-avatar">{member.name?.slice(0, 1)}</span><div><strong>{member.name}</strong><small>{member.email}</small></div><span className="role-badge">{member.role}</span><button className="text-button danger-button" type="button" onClick={() => removeTeamMember(member)} disabled={isSaving}>Remove</button></article>)}
+          </section>}
+          {route.key === "task-detail" && <section className="content-panel task-detail-page">{!taskDetail ? <p className="empty-state">Task details are loading…</p> : <><div className="section-heading"><div><span className="eyebrow">{taskDetail.project_name || "TASK"}</span><h2>{taskDetail.title}</h2></div><button type="button" className="secondary-button" onClick={() => navigate("/tasks")}>Back to tasks</button></div><form className="task-edit-form" onSubmit={async (event) => { event.preventDefault(); await updateWorkspaceTask(taskDetail, { title: taskDetailDraft.title.trim(), description: taskDetailDraft.description, priority: taskDetailDraft.priority, startDate: taskDetailDraft.startDate || null, dueDate: taskDetailDraft.dueDate || null }); }}><label>Title<input value={taskDetailDraft.title} disabled={! ["owner", "admin", "manager"].includes(selectedWorkspace?.role)} onChange={(event) => setTaskDetailDraft((current) => ({ ...current, title: event.target.value }))} required /></label><label>Description<textarea value={taskDetailDraft.description} disabled={! ["owner", "admin", "manager"].includes(selectedWorkspace?.role)} onChange={(event) => setTaskDetailDraft((current) => ({ ...current, description: event.target.value }))} rows="3" /></label><div className="task-detail-fields"><label>Status<select value={taskDetail.status} disabled={isSaving || selectedWorkspace?.role === "viewer"} onChange={(event) => updateWorkspaceTask(taskDetail, { status: event.target.value })}><option value="todo">To do</option><option value="in_progress">In progress</option><option value="in_review">In review</option><option value="completed">Completed</option></select></label><label>Priority<select value={taskDetailDraft.priority} disabled={! ["owner", "admin", "manager"].includes(selectedWorkspace?.role)} onChange={(event) => setTaskDetailDraft((current) => ({ ...current, priority: event.target.value }))}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></label><label>Start date<input type="date" value={taskDetailDraft.startDate} disabled={! ["owner", "admin", "manager"].includes(selectedWorkspace?.role)} onChange={(event) => setTaskDetailDraft((current) => ({ ...current, startDate: event.target.value }))} /></label><label>Due date<input type="date" value={taskDetailDraft.dueDate} disabled={! ["owner", "admin", "manager"].includes(selectedWorkspace?.role)} onChange={(event) => setTaskDetailDraft((current) => ({ ...current, dueDate: event.target.value }))} /></label><label>Assignee<select aria-label="Assignee" value={taskDetail.assignee_id || ""} disabled={isSaving || !["owner", "admin", "manager"].includes(selectedWorkspace?.role)} onChange={(event) => updateWorkspaceTask(taskDetail, { assigneeId: event.target.value ? Number(event.target.value) : null })}><option value="">Unassigned</option>{workspaceMembers.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.email}</option>)}</select></label></div>{["owner", "admin", "manager"].includes(selectedWorkspace?.role) && <button className="primary-button" type="submit" disabled={isSaving || !taskDetailDraft.title.trim()}>Save task</button>}</form><h3>Subtasks</h3>{taskDetailSubtasks.map((subtask) => <label className="subtask-row" key={subtask.id}><input type="checkbox" checked={Boolean(subtask.is_completed)} disabled={selectedWorkspace?.role === "viewer" || isSaving} onChange={async (event) => { await runAction(async () => { await apiRequest(`/workspaces/${workspaceId}/tasks/${route.id}/subtasks/${subtask.id}`, { method: "PATCH", body: { isCompleted: event.target.checked } }); setTaskDetailSubtasks((current) => current.map((item) => item.id === subtask.id ? { ...item, is_completed: event.target.checked } : item)); }); }} />{subtask.title}</label>)}{!taskDetailSubtasks.length && <p className="empty-state">No subtasks.</p>}{selectedWorkspace?.role !== "viewer" && <form className="member-invite-form" onSubmit={async (event) => { event.preventDefault(); if (!subtaskTitle.trim()) return; await runAction(async () => { const result = await apiRequest(`/workspaces/${workspaceId}/tasks/${route.id}/subtasks`, { method: "POST", body: { title: subtaskTitle.trim() } }); setTaskDetailSubtasks((current) => [...current, result.subtask]); setSubtaskTitle(""); }); }}><input aria-label="New subtask" value={subtaskTitle} onChange={(event) => setSubtaskTitle(event.target.value)} placeholder="Add a subtask" required /><button className="secondary-button" type="submit" disabled={isSaving}>Add subtask</button></form>}<h3>Comments</h3>{taskDetailComments.map((comment) => <p className="task-comment" key={comment.id}><strong>{comment.author_name || "Teammate"}</strong> {comment.body}</p>)}{selectedWorkspace?.role !== "viewer" && <form className="member-invite-form" onSubmit={async (event) => { event.preventDefault(); if (!commentDraft.trim()) return; await runAction(async () => { const result = await apiRequest(`/workspaces/${workspaceId}/tasks/${route.id}/comments`, { method: "POST", body: { body: commentDraft.trim() } }); setTaskDetailComments((current) => [...current, result.comment]); setCommentDraft(""); }); }}><input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="Write a comment" aria-label="Task comment" required /><button className="primary-button" type="submit" disabled={isSaving}>Comment</button></form>}<h3>Attachments</h3>{taskDetailAttachments.map((attachment) => <button className="text-button" type="button" key={attachment.id} onClick={() => retrieveTaskAttachment(taskDetail, attachment)}>{attachment.original_name}</button>)}{!taskDetailAttachments.length && <p className="empty-state">No attachments.</p>}{selectedWorkspace?.role !== "viewer" && <label className="secondary-button upload-attachment-button">Upload attachment<input type="file" onChange={async (event) => { await uploadTaskAttachment(event, taskDetail); const result = await apiRequest(`/workspaces/${workspaceId}/tasks/${route.id}/attachments`); setTaskDetailAttachments(result.attachments); }} /></label>}<h3>Activity</h3>{taskDetailActivity.length ? taskDetailActivity.map((item) => <article className="activity-item" key={item.id}><span className="activity-dot" /><p><strong>{item.actor_name || "Teammate"}</strong> {item.action}</p><time>{new Date(item.created_at).toLocaleString()}</time></article>) : <p className="empty-state">Task activity will appear here.</p>}</>}</section>}
+
+          {route.key === "tasks" && <section className="content-panel all-tasks-page"><div className="section-heading"><div><h2>All accessible tasks</h2><p>Workspace tasks returned by your membership-scoped API.</p></div></div><form className="task-filter-toolbar" onSubmit={(event) => event.preventDefault()}><input aria-label="Search all tasks" value={taskPageSearch} onChange={(event) => setTaskPageSearch(event.target.value)} placeholder="Search tasks" /><select aria-label="Filter by status" value={taskPageStatus} onChange={(event) => setTaskPageStatus(event.target.value)}><option value="">All statuses</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="in_review">In review</option><option value="completed">Completed</option></select><select aria-label="Filter by priority" value={taskPagePriority} onChange={(event) => setTaskPagePriority(event.target.value)}><option value="">All priorities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select><select aria-label="Filter by project" value={taskPageProject} onChange={(event) => setTaskPageProject(event.target.value)}><option value="">All projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></form>{["owner", "admin", "manager"].includes(selectedWorkspace?.role) && <form className="task-filter-toolbar task-create-form" onSubmit={createWorkspaceTask}><input value={taskPageTitle} onChange={(event) => setTaskPageTitle(event.target.value)} placeholder="Task title" aria-label="New task title" required /><select aria-label="Project for new task" value={taskPageProjectId || selectedProjectId || ""} onChange={(event) => setTaskPageProjectId(event.target.value)} required><option value="">Choose a project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select><button className="primary-button" type="submit" disabled={isSaving}>Create task</button></form>}{workspaceTasks.length ? <div className="route-task-list">{workspaceTasks.map((task) => <article className="route-task-row" key={task.id}><div><button className="task-title-link" type="button" onClick={() => navigate(`/tasks/${task.id}`)}>{task.title}</button><small>{task.project_name} · {task.assignee_name || "Unassigned"} · {task.due_date ? dateOnly(task.due_date)?.toLocaleDateString() : "No due date"}</small></div><span className={`priority-pill priority-${task.priority}`}>{task.priority}</span><select aria-label={`Status for ${task.title}`} value={task.status} disabled={isSaving || (! ["owner", "admin", "manager"].includes(selectedWorkspace?.role) && String(task.assignee_id) !== String(user.id))} onChange={(event) => updateWorkspaceTask(task, { status: event.target.value })}><option value="todo">To do</option><option value="in_progress">In progress</option><option value="in_review">In review</option><option value="completed">Completed</option></select></article>)}</div> : !isLoadingRoute && <p className="empty-state">No tasks match the current filters.</p>}</section>}
+
+          {route.key === "board" && <section className="content-panel workspace-board-page"><div className="section-heading"><div><h2>Workspace board</h2><p>Drag cards between stages or use the status selector for keyboard and touch control.</p></div></div><div className="project-toolbar"><select aria-label="Filter board by project" value={taskPageProject} onChange={(event) => setTaskPageProject(event.target.value)}><option value="">All projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select><input aria-label="Search board tasks" value={taskPageSearch} onChange={(event) => setTaskPageSearch(event.target.value)} placeholder="Search tasks" /></div><div className="kanban-board">{[["todo", "To do"], ["in_progress", "In progress"], ["in_review", "In review"], ["completed", "Completed"]].map(([status, label]) => <section className="kanban-column" key={status} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const moving = workspaceTasks.find((item) => String(item.id) === String(draggedTaskId)); if (moving) updateWorkspaceTask(moving, { status }); setDraggedTaskId(null); }}><header><strong>{label}</strong><span>{workspaceTasks.filter((task) => task.status === status).length}</span></header>{workspaceTasks.filter((task) => task.status === status).map((task) => <article className="kanban-card" key={task.id} draggable={selectedWorkspace?.role !== "viewer" && (["owner", "admin", "manager"].includes(selectedWorkspace?.role) || String(task.assignee_id) === String(user.id))} onDragStart={() => setDraggedTaskId(task.id)} onDragEnd={() => setDraggedTaskId(null)}><button className="task-title-link" type="button" onClick={() => navigate(`/tasks/${task.id}`)}>{task.title}</button><small>{task.project_name} · {task.assignee_name || "Unassigned"}</small><select aria-label={`Move ${task.title} to status`} value={task.status} disabled={isSaving || (! ["owner", "admin", "manager"].includes(selectedWorkspace?.role) && String(task.assignee_id) !== String(user.id))} onChange={(event) => updateWorkspaceTask(task, { status: event.target.value })}><option value="todo">To do</option><option value="in_progress">In progress</option><option value="in_review">In review</option><option value="completed">Completed</option></select></article>)}</section>)}</div></section>}
+
+          {route.key === "reports" && <section className="content-panel route-reports-page"><div className="section-heading"><div><h2>Workspace analytics</h2><p>Calculated from stored workspace, project, and team activity.</p></div><button className="secondary-button" type="button" onClick={exportAnalyticsCsv} disabled={isSaving}>Export CSV</button></div>{!organizationAnalytics ? <p className="empty-state">Analytics are not available for this workspace.</p> : <><div className="project-detail-summary"><article><span>Tasks</span><strong>{organizationAnalytics.metrics.task_count}</strong></article><article><span>Completion</span><strong>{organizationAnalytics.metrics.completion_rate}%</strong></article><article><span>On time</span><strong>{organizationAnalytics.metrics.on_time_completion_rate}%</strong></article><article><span>Overdue</span><strong>{organizationAnalytics.metrics.overdue_tasks}</strong></article></div><h3>Completion trend</h3><div className="trend-bars">{organizationAnalytics.trends.map((month) => <div key={month.month}><span>{month.completed_tasks}</span><div style={{ height: `${Math.max(5, (month.completed_tasks / Math.max(1, ...organizationAnalytics.trends.map((item) => item.completed_tasks))) * 100)}%` }} /><small>{String(month.month).slice(0, 7)}</small></div>)}</div>{projectAnalytics && <><h3>Selected project</h3><p>{projectAnalytics.metrics.task_count} tasks · {projectAnalytics.metrics.completion_rate}% complete · {projectAnalytics.metrics.overdue_tasks} overdue</p></>}{teamProductivity.filter(({ team }) => !reportTeamFilter || String(team.id) === String(reportTeamFilter)).map(({ team, result }) => <section className="team-report" key={team.id}><h3>{team.name}</h3>{result.productivity.map((member) => <p key={member.user_id}>{member.name} · {member.completed_tasks}/{member.task_count} complete · {formatDuration(member.tracked_seconds)}</p>)}</section>)}</>}</section>}
+
+          {route.key === "time" && <section className="content-panel time-tracking-page"><div className="section-heading"><div><h2>Time tracking</h2><p>Recorded task sessions and project totals.</p></div></div>{activeWorkspaceTimer ? <div className="active-timer-card"><span className="timer-live-dot" />Tracking <strong>{activeWorkspaceTimer.task_title}</strong><button className="primary-button" type="button" onClick={() => stopTaskTimer({ id: activeWorkspaceTimer.task_id }, activeWorkspaceTimer)} disabled={isSaving}>Stop timer</button></div> : <p className="empty-state">No timer is running.</p>}<h3>Start a timer</h3><div className="route-task-list">{workspaceTasks.filter((task) => task.status !== "completed").slice(0, 30).map((task) => <article className="route-task-row" key={task.id}><div><strong>{task.title}</strong><small>{task.project_name} · {task.assignee_name || "Unassigned"}</small></div><button className="secondary-button" type="button" disabled={isSaving || isLoadingRoute || !timeReports || selectedWorkspace?.role === "viewer" || Boolean(activeWorkspaceTimer)} onClick={() => startTaskTimer(task)}>Start</button><button className="text-button" type="button" onClick={() => toggleTaskTime(task)}>{String(openTimeTaskId) === String(task.id) ? "Hide entries" : "Time entries"}</button>{String(openTimeTaskId) === String(task.id) && <div className="time-entry-list">{(taskTimeData[task.id]?.entries || []).map((entry) => <p key={entry.id}>{entry.user_name || "Teammate"} · {new Date(entry.started_at).toLocaleString()} · {formatDuration(entry.duration_seconds)}</p>)}</div>}</article>)}</div><h3>Project summaries</h3>{timeReports?.projects?.map((project) => <article className="route-task-row" key={project.project_id}><strong>{project.project_name}</strong><span>{formatDuration(project.total_seconds)}</span></article>)}</section>}
+
+          {route.key === "settings" && <section className="content-panel route-settings-page"><div className="section-heading"><div><h2>Workspace settings</h2><p>Manage supported account and workspace preferences.</p></div></div><div className="settings-section"><h3>Appearance</h3><p>Choose how ProjectFlow looks on this device.</p><button className="secondary-button" type="button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")}>{theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}</button></div><div className="settings-section"><h3>Notifications</h3>{[["assignment_enabled", "assignmentEnabled", "Assignments"], ["mention_enabled", "mentionEnabled", "Mentions"], ["due_date_enabled", "dueDateEnabled", "Due-date reminders"]].map(([column, field, label]) => <label className="settings-checkbox" key={column}><input type="checkbox" checked={notificationPreferences[column]} onChange={(event) => updateNotificationPreference(field, event.target.checked)} />{label}</label>)}</div><div className="settings-section"><h3>Organization</h3>{selectedOrganization && <><p>{selectedOrganization.name} · {selectedOrganization.role}</p>{["owner", "admin"].includes(selectedOrganization.role) && <form className="member-invite-form" onSubmit={renameOrganization}><input aria-label="Organization name" value={organizationEditName} onChange={(event) => setOrganizationEditName(event.target.value)} required /><button className="secondary-button" type="submit" disabled={isSaving}>Save organization name</button></form>}</>}</div><div className="settings-section"><h3>Workspace</h3><p>{selectedWorkspace?.name || "No workspace selected"} · {selectedWorkspace?.role || ""}</p>{["owner", "admin"].includes(selectedWorkspace?.role) && <form className="member-invite-form" onSubmit={(event) => updateWorkspace(event, selectedWorkspace)}><input aria-label="Workspace name" value={workspaceEditName || selectedWorkspace.name} onChange={(event) => setWorkspaceEditName(event.target.value)} required /><button className="secondary-button" type="submit" disabled={isSaving}>Save workspace name</button></form>}</div><div className="settings-section"><h3>Members</h3><p>Member administration is available on the Members page.</p><button className="secondary-button" type="button" onClick={() => navigate("/members")}>Manage members</button></div></section>}
+
+          {route.key === "profile" && <section className="content-panel route-profile-page"><div className="section-heading"><div><h2>My profile</h2><p>Profile name and account security.</p></div></div>{profileNotice && <p className="form-notice" role="status">{profileNotice}</p>}<form className="profile-settings-form" onSubmit={saveProfile}><label>Name<input value={profileDraft.name} onChange={(event) => setProfileDraft((current) => ({ ...current, name: event.target.value }))} maxLength="100" required /></label><label>Email<input value={profileDraft.email} readOnly aria-readonly="true" /><small>Email changes are not supported by the current account API.</small></label><button className="primary-button" type="submit" disabled={isSaving || !profileDraft.name.trim()}>Save profile</button></form><form className="profile-settings-form" onSubmit={changeAccountPassword}><h3>Change password</h3><label>Current password<input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></label><label>New password<input type="password" minLength="8" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label><button className="secondary-button" type="submit" disabled={isSaving || newPassword.length < 8}>Update password</button></form></section>}
+
+          {route.key === "reports" && <form className="reports-filter-panel content-panel"><label>Project <select aria-label="Analytics project" value={selectedProjectId || ""} onChange={(event) => setSelectedProjectId(event.target.value || null)}><option value="">All projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Team <select aria-label="Analytics team" value={reportTeamFilter} onChange={(event) => setReportTeamFilter(event.target.value)}><option value="">All teams</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label><small>Trend range: last six months (the analytics API defines this range).</small></form>}
+          {route.key === "time" && <form className="content-panel time-filter-panel" onSubmit={(event) => event.preventDefault()}><label>From <input type="date" value={timeFromDate} onChange={(event) => setTimeFromDate(event.target.value)} /></label><label>To <input type="date" min={timeFromDate || undefined} value={timeToDate} onChange={(event) => setTimeToDate(event.target.value)} /></label><button className="text-button" type="button" onClick={() => { setTimeFromDate(""); setTimeToDate(""); }}>Last 30 days</button></form>}
 
           {selectedOrganization && <section className="content-panel organization-panel">
             <div className="section-heading"><div><h2>{selectedOrganization.name}</h2><p>Organization settings, members, and invitations.</p></div><span>{selectedOrganization.role}</span></div>
@@ -1550,6 +2325,23 @@ export default function App() {
             <h3>Members</h3>
             {organizationMembers.length === 0 ? <p className="empty-state">No organization members found.</p> : organizationMembers.map((member) => <div className="member-row" key={member.id}><span><strong>{member.name}</strong><small>{member.email}</small></span><span>{member.role}</span>{['owner', 'admin'].includes(selectedOrganization.role) && member.role !== 'owner' && String(member.id) !== String(user.id) && <button className="text-button danger-button" type="button" onClick={() => removeOrganizationMember(member)} disabled={isSaving}>Remove</button>}</div>)}
             {['owner', 'admin'].includes(selectedOrganization.role) && <><h3>Invitations</h3>{organizationInvitations.length === 0 ? <p className="empty-state">No pending invitations.</p> : organizationInvitations.map((invitation) => <div className="member-row" key={invitation.id}><span><strong>{invitation.email}</strong><small>{invitation.role} · {invitation.status}</small></span>{invitation.status === 'pending' && <><button className="text-button" type="button" onClick={() => manageOrganizationInvitation(invitation, 'resend')} disabled={isSaving}>Resend</button><button className="text-button danger-button" type="button" onClick={() => manageOrganizationInvitation(invitation, 'revoke')} disabled={isSaving}>Revoke</button></>}</div>)}</>}
+          </section>}
+
+          {activeNav === "my-work" && <section className="content-panel my-day-panel" aria-labelledby="my-day-title">
+            <div className="section-heading"><div><div className="eyebrow">MY DAY</div><h2 id="my-day-title">A clear view of what needs you</h2><p>Your assigned work for today, based on the selected project.</p></div></div>
+            <div className="my-day-stats">
+              <article><span>Overdue</span><strong>{myOverdueTasks.length}</strong></article>
+              <article><span>Due today</span><strong>{myDueTodayTasks.length}</strong></article>
+              <article><span>Completed</span><strong>{myCompletedTasks.length}</strong></article>
+            </div>
+            {myAssignedTasks.filter((task) => task.status !== "completed").length === 0
+              ? <p className="empty-state">No open tasks assigned to you in this project.</p>
+              : <div className="my-day-list">{myAssignedTasks.filter((task) => task.status !== "completed").slice(0, 6).map((task) => <article className="my-day-task" key={task.id}>
+                <span className="my-day-task-copy"><strong>{task.title}</strong><small>{task.due_date ? `Due ${dateOnly(task.due_date)?.toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "No due date"}</small></span>
+                <select aria-label={`Update status for ${task.title}`} value={task.status} disabled={isSaving || (! ["owner", "admin", "manager"].includes(selectedWorkspace?.role) && String(task.assignee_id) !== String(user.id))} onChange={(event) => updateTask(task, event.target.value)}>
+                  <option value="todo">To do</option><option value="in_progress">In progress</option><option value="in_review">In review</option><option value="completed">Completed</option>
+                </select>
+              </article>)}</div>}
           </section>}
 
           {/* DASHBOARD CARDS */}
@@ -1583,7 +2375,13 @@ export default function App() {
               </div>
             </article>
 
+            <article className="overview-card"><span>Workspace members</span><div className="metric-value">{dashboard?.user_count ?? 0}</div></article>
+            <article className="overview-card"><span>Overdue tasks</span><div className="metric-value">{dashboard?.overdue_tasks ?? 0}</div></article>
+            <article className="overview-card"><span>Active projects</span><div className="metric-value">{dashboard?.active_projects ?? 0}</div></article>
+
           </div>
+
+          {route.key === "dashboard" && <section className="content-panel dashboard-role-panel"><div className="section-heading"><div><h2>{selectedWorkspace?.role === "employee" || selectedWorkspace?.role === "viewer" ? "Your workload" : "Team workload"}</h2><p>{selectedWorkspace?.role === "employee" || selectedWorkspace?.role === "viewer" ? "Your open assignments and due dates." : "Current assignments by workspace member."}</p></div></div>{selectedWorkspace?.role === "employee" || selectedWorkspace?.role === "viewer" ? <div className="my-day-stats"><article><span>Overdue</span><strong>{myWorkData?.stats?.overdue ?? 0}</strong></article><article><span>Due today</span><strong>{myWorkData?.stats?.dueToday ?? 0}</strong></article><article><span>Upcoming</span><strong>{myWorkData?.stats?.upcoming ?? 0}</strong></article></div> : <div className="workload-table"><div className="workload-header"><strong>Member</strong><strong>Tasks</strong><strong>Overdue</strong><strong>Next 7 days</strong><strong>Tracked</strong></div>{workload.map((member, index) => <div className="workload-row" key={member.assignee_id || `unassigned-${index}`}><strong>{member.assignee_name || "Unassigned"}</strong><span>{member.task_count}</span><span>{member.overdue_tasks}</span><span>{member.upcoming_tasks}</span><span>{formatDuration(member.tracked_seconds)}</span></div>)}</div>}</section>}
 
           <section className="content-panel activity-panel">
             <div className="section-heading"><div><h2>Recent activity</h2><p>Changes and collaboration across this workspace.</p></div></div>
@@ -1598,7 +2396,7 @@ export default function App() {
 
           {/* PROJECT MANAGEMENT */}
 
-          <section className="content-panel">
+          <section className="content-panel project-list-panel">
 
             <div className="section-heading">
               <div>
@@ -1667,6 +2465,8 @@ export default function App() {
                         disabled={isSaving}
                         onClick={() => {
                           setSelectedProjectId(project.id);
+                          setTaskPageProjectId(String(project.id));
+                          navigate(`/projects/${project.id}`);
                           refreshTasks(project.id).catch((requestError) =>
                             setError(requestError.message)
                           );
@@ -1675,6 +2475,7 @@ export default function App() {
                       >
                         {project.name}
                       </button>
+                      <span className={`project-health project-health-${getProjectHealth(project).label.toLowerCase().replace(" ", "-")}`}><i />{getProjectHealth(project).label}</span>
                       {["owner", "admin", "manager"].includes(selectedWorkspace?.role) && (
                         <button
                           className="text-button"
@@ -1707,8 +2508,9 @@ export default function App() {
             </div>
           </section>
 
-          <section className="content-panel">
+          <section className="content-panel team-list-panel">
             <div className="section-heading"><div><h2>Teams</h2><p>Organize workspace members and assign team ownership.</p></div></div>
+            <div className="team-directory-links">{teams.map((team) => <button className="team-directory-card" type="button" key={team.id} onClick={() => navigate(`/teams/${team.id}`)}><strong>{team.name}</strong><small>{team.member_count} members · {team.manager_name || "No manager"}</small><span>Open team →</span></button>)}</div>
             {selectedWorkspace && ["owner", "admin", "manager"].includes(selectedWorkspace.role) && (
               <form className="project-toolbar" onSubmit={createTeam}>
                 <input aria-label="Team name" value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder="New team name" required />
@@ -1751,15 +2553,15 @@ export default function App() {
 
           {/* TASK MANAGEMENT */}
 
-          <section className="content-panel">
+          <section className="content-panel task-workspace-panel">
 
             <div className="section-heading">
               <h2>Tasks</h2>
               <div className="view-switch" role="group" aria-label="Task view">
-                <button className={`secondary-button ${!boardMode && !calendarMode && !timelineMode ? "active" : ""}`} onClick={() => { setCalendarMode(false); setTimelineMode(false); setBoardMode(false); }} type="button">List</button>
-                <button className={`secondary-button ${boardMode ? "active" : ""}`} onClick={() => { setCalendarMode(false); setTimelineMode(false); setBoardMode(true); }} type="button">Board</button>
-                <button className={`secondary-button ${calendarMode ? "active" : ""}`} onClick={() => { setCalendarMode(true); setTimelineMode(false); setBoardMode(false); }} type="button">Calendar</button>
-                <button className={`secondary-button ${timelineMode ? "active" : ""}`} onClick={showTimeline} type="button">Timeline</button>
+                <button className={`secondary-button ${!routeBoardMode && !routeCalendarMode && !routeTimelineMode ? "active" : ""}`} onClick={() => { setCalendarMode(false); setTimelineMode(false); setBoardMode(false); }} type="button">List</button>
+                <button className={`secondary-button ${routeBoardMode ? "active" : ""}`} onClick={() => { setCalendarMode(false); setTimelineMode(false); setBoardMode(true); }} type="button">Board</button>
+                <button className={`secondary-button ${routeCalendarMode ? "active" : ""}`} onClick={() => { setCalendarMode(true); setTimelineMode(false); setBoardMode(false); }} type="button">Calendar</button>
+                <button className={`secondary-button ${routeTimelineMode ? "active" : ""}`} onClick={() => setActiveNav("timeline")} type="button">Timeline</button>
                 <button className="secondary-button" type="button" onClick={toggleTimeReports}>{showTimeReports ? "Hide reports" : "Time reports"}</button>
                 <button className="secondary-button" type="button" onClick={toggleWorkload}>{showWorkload ? "Hide workload" : "Workload"}</button>
                 <button className="secondary-button" type="button" onClick={toggleAnalytics} disabled={!workspaceId || !selectedOrganizationId}>{showAnalytics ? "Hide analytics" : "Analytics"}</button>
@@ -1810,7 +2612,7 @@ export default function App() {
                     <p>{projectAnalytics.metrics.task_count} tasks · {projectAnalytics.metrics.completion_rate}% complete · {projectAnalytics.metrics.overdue_tasks} overdue</p>
                   </>
                 )}
-                {teamProductivity.map(({ team, result }) => (
+                {teamProductivity.filter(({ team }) => !reportTeamFilter || String(team.id) === String(reportTeamFilter)).map(({ team, result }) => (
                   <div key={team.id}>
                     <h3>{team.name} productivity</h3>
                     {result.productivity.map((person) => <p key={person.user_id}>{person.name} · {person.completed_tasks}/{person.task_count} complete · {formatDuration(person.tracked_seconds)}</p>)}
@@ -1869,7 +2671,7 @@ export default function App() {
             {/* TASK LIST */}
 
             {isLoadingTasks && <p className="loading-message" role="status">Loading tasks...</p>}
-            {timelineMode ? (
+            {routeTimelineMode ? (
               <section className="project-timeline" aria-label="Project timeline">
                 <div className="timeline-toolbar">
                   <button className="secondary-button" type="button" aria-label="Previous timeline period" onClick={() => setTimelineCursor((current) => new Date(current.getFullYear(), current.getMonth(), current.getDate() - timelineDays))}>Previous</button>
@@ -1953,24 +2755,26 @@ export default function App() {
                   </form>
                 )}
               </section>
-            ) : calendarMode ? (
+            ) : routeCalendarMode ? (
               <section className="task-calendar" aria-label="Task calendar">
                 <div className="calendar-toolbar">
                   <div className="calendar-navigation">
                     <button className="secondary-button" type="button" aria-label="Previous period" onClick={() => setCalendarCursor((current) => {
                       if (calendarPeriod === "month") return new Date(current.getFullYear(), current.getMonth() - 1, 1);
-                      return new Date(current.getFullYear(), current.getMonth(), current.getDate() - (calendarPeriod === "week" ? 7 : 1));
+                      return new Date(current.getFullYear(), current.getMonth(), current.getDate() - (["week", "agenda"].includes(calendarPeriod) ? 7 : 1));
                     })}>Previous</button>
                     <h3>{calendarTitle}</h3>
                     <button className="secondary-button" type="button" aria-label="Next period" onClick={() => setCalendarCursor((current) => {
                       if (calendarPeriod === "month") return new Date(current.getFullYear(), current.getMonth() + 1, 1);
-                      return new Date(current.getFullYear(), current.getMonth(), current.getDate() + (calendarPeriod === "week" ? 7 : 1));
+                      return new Date(current.getFullYear(), current.getMonth(), current.getDate() + (["week", "agenda"].includes(calendarPeriod) ? 7 : 1));
                     })}>Next</button>
+                    <button className="secondary-button" type="button" onClick={() => setCalendarCursor(new Date())}>Today</button>
                   </div>
                   <select aria-label="Calendar period" value={calendarPeriod} onChange={(event) => setCalendarPeriod(event.target.value)}>
                     <option value="month">Month</option>
                     <option value="week">Week</option>
                     <option value="day">Day</option>
+                    <option value="agenda">Agenda</option>
                   </select>
                   <select aria-label="Filter by team" value={calendarTeamFilter} onChange={(event) => setCalendarTeamFilter(event.target.value)}>
                     <option value="">All teams</option>
@@ -2012,7 +2816,7 @@ export default function App() {
                   })}
                 </div>
               </section>
-            ) : boardMode ? (
+            ) : routeBoardMode ? (
               <div className="kanban-board" aria-label="Tasks by status">
                 {["todo", "in_progress", "in_review", "completed"].map((status) => (
                   <section className="kanban-column" key={status}
@@ -2274,6 +3078,70 @@ export default function App() {
               </div>
             </form>
           </section>
+        </div>
+      )}
+
+      {showCommandPalette && (
+        <div
+          className="command-palette-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setShowCommandPalette(false);
+          }}
+        >
+          <div className="command-palette-box" role="dialog" aria-modal="true" aria-label="Command Palette">
+            <div className="command-palette-input-wrap">
+              <Search size={18} color="var(--text-muted)" />
+              <input
+                className="command-palette-input"
+                autoFocus
+                value={paletteQuery}
+                onChange={(e) => { setPaletteQuery(e.target.value); setGlobalSearchResults({ projects: [], tasks: [], members: [] }); }}
+                placeholder="Type a command, project, or task name..."
+              />
+              <button
+                type="button"
+                className="icon-btn"
+                style={{ width: "24px", height: "24px", border: "none" }}
+                onClick={() => setShowCommandPalette(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="command-palette-results">
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", padding: "4px 8px" }}>
+                NAVIGATION
+              </div>
+              {!paletteQuery.trim() ? <>
+                <div className="palette-group-label">NAVIGATION</div>
+                {[
+                  { label: "Dashboard", icon: LayoutDashboard, nav: "dashboard" },
+                  { label: "Inbox", icon: Mail, nav: "inbox" },
+                  { label: "My Work", icon: CheckSquare, nav: "my-work" },
+                  { label: "Projects", icon: FolderKanban, nav: "projects" },
+                  { label: "My Tasks", icon: ListTodo, nav: "tasks" },
+                  { label: "Kanban Board", icon: Columns3, nav: "board" },
+                  { label: "Calendar", icon: CalendarIcon, nav: "calendar" },
+                  { label: "Timeline", icon: Milestone, nav: "timeline" },
+                  { label: "Teams", icon: Users, nav: "teams" },
+                  { label: "Members", icon: Contact, nav: "members" },
+                  { label: "Reports", icon: BarChart3, nav: "reports" },
+                  { label: "Time Tracking", icon: Clock, nav: "time" },
+                  { label: "Settings", icon: SettingsIcon, nav: "settings" },
+                  { label: "My Profile", icon: UserRound, nav: "profile" },
+                ].map((item) => <button key={item.nav} className="command-palette-item" type="button" onClick={() => { setActiveNav(item.nav); setShowCommandPalette(false); }}><span><item.icon size={16} />{item.label}</span><small>Open</small></button>)}
+              </> : <>
+                {isGlobalSearchLoading && <p className="loading-message" role="status">Searching workspace…</p>}
+                {globalSearchResults.projects.length > 0 && <><div className="palette-group-label">PROJECTS</div>{globalSearchResults.projects.map((project) => <button className="command-palette-item" type="button" key={project.id} onClick={() => { navigate(`/projects/${project.id}`); setShowCommandPalette(false); }}><span><FolderKanban size={16} />{project.name}</span><small>{project.status}</small></button>)}</>}
+                {globalSearchResults.tasks.length > 0 && <><div className="palette-group-label">TASKS</div>{globalSearchResults.tasks.map((task) => <button className="command-palette-item" type="button" key={task.id} onClick={() => { navigate(`/tasks/${task.id}`); setShowCommandPalette(false); }}><span><CheckCircle2 size={16} />{task.title}</span><small>{task.project_name}</small></button>)}</>}
+                {globalSearchResults.members.length > 0 && <><div className="palette-group-label">MEMBERS</div>{globalSearchResults.members.map((member) => <button className="command-palette-item" type="button" key={member.id} onClick={() => { navigate("/members"); setShowCommandPalette(false); }}><span><Contact size={16} />{member.name}</span><small>{member.role}</small></button>)}</>}
+                {!isGlobalSearchLoading && !globalSearchResults.projects.length && !globalSearchResults.tasks.length && !globalSearchResults.members.length && <p className="empty-state">No matching projects, tasks, or members.</p>}
+              </>}
+            </div>
+            <div className="command-palette-footer">
+              <span>Tab to move · Enter to open</span>
+              <span>ESC to close</span>
+            </div>
+          </div>
         </div>
       )}
     </div>

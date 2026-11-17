@@ -2,7 +2,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const pool = require("../config/db");
-const { registerSchema, loginSchema } = require("../validators/authValidator");
+const { registerSchema, loginSchema, changePasswordSchema } = require("../validators/authValidator");
 const { profileSchema, passwordResetRequestSchema, passwordResetSchema } = require("../validators/domainValidator");
 const { clearAuthCookie, setAuthCookie } = require("../utils/authCookie");
 const { sendEmail } = require("../services/emailService");
@@ -26,6 +26,7 @@ function publicUser(user) {
     id: user.id,
     name: user.name,
     email: user.email,
+    avatarUrl: user.avatar_url || null,
     createdAt: user.created_at,
     updatedAt: user.updated_at,
   };
@@ -116,7 +117,7 @@ async function logout(req, res) {
 
 async function currentUser(req, res) {
   const result = await pool.query(
-    "SELECT id, name, email, created_at, updated_at FROM users WHERE id = $1",
+    "SELECT id, name, email, avatar_url, created_at, updated_at FROM users WHERE id = $1",
     [req.user.id]
   );
 
@@ -137,14 +138,50 @@ async function updateCurrentUser(req, res) {
   const parsed = profileSchema.safeParse(req.body);
   if (!parsed.success) return validationError(res, parsed.error);
 
+  const updates = ["name = $1", "updated_at = NOW()"];
+  const values = [parsed.data.name];
+  if (parsed.data.avatarUrl !== undefined) {
+    values.push(parsed.data.avatarUrl);
+    updates.push(`avatar_url = $${values.length}`);
+  }
+  values.push(req.user.id);
+
   const result = await pool.query(
-    `UPDATE users SET name = $1, updated_at = NOW()
-     WHERE id = $2
-     RETURNING id, name, email, created_at, updated_at`,
-    [parsed.data.name, req.user.id]
+    `UPDATE users SET ${updates.join(", ")}
+     WHERE id = $${values.length}
+     RETURNING id, name, email, avatar_url, created_at, updated_at`,
+    values
   );
   if (!result.rows[0]) return res.status(404).json({ success: false, message: "User not found" });
   return res.status(200).json({ success: true, user: publicUser(result.rows[0]) });
+}
+
+async function changePassword(req, res) {
+  const parsed = changePasswordSchema.safeParse(req.body);
+  if (!parsed.success) return validationError(res, parsed.error);
+
+  const userResult = await pool.query(
+    "SELECT id, password_hash FROM users WHERE id = $1",
+    [req.user.id]
+  );
+  const user = userResult.rows[0];
+  if (!user || !(await bcrypt.compare(parsed.data.currentPassword, user.password_hash))) {
+    return res.status(400).json({
+      success: false,
+      message: "Current password is incorrect",
+    });
+  }
+
+  const newHash = await bcrypt.hash(parsed.data.newPassword, SALT_ROUNDS);
+  await pool.query(
+    "UPDATE users SET password_hash = $1, token_version = token_version + 1, updated_at = NOW() WHERE id = $2",
+    [newHash, req.user.id]
+  );
+
+  return res.status(200).json({
+    success: true,
+    message: "Password changed successfully",
+  });
 }
 
 async function requestPasswordReset(req, res) {
@@ -206,4 +243,4 @@ async function resetPassword(req, res) {
   } finally { client.release(); }
 }
 
-module.exports = { register, login, logout, currentUser, updateCurrentUser, requestPasswordReset, resetPassword };
+module.exports = { register, login, logout, currentUser, updateCurrentUser, changePassword, requestPasswordReset, resetPassword };

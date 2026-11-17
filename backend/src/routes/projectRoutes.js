@@ -16,6 +16,10 @@ router.patch("/:workspaceId/projects/:projectId", validateIds(["workspaceId", "p
 router.delete("/:workspaceId/projects/:projectId", validateIds(["workspaceId", "projectId"]), requireWorkspaceMember({ role: "admin" }), wrap(c.deleteProject));
 router.get("/:workspaceId/projects/:projectId/timeline", validateIds(["workspaceId", "projectId"]), requireWorkspaceMember(), wrap(timeline.getTimeline));
 router.get("/:workspaceId/projects/:projectId/analytics", validateIds(["workspaceId", "projectId"]), requireWorkspaceMember(), wrap(analytics.getProjectAnalytics));
+router.get("/:workspaceId/projects/:projectId/milestones", validateIds(["workspaceId", "projectId"]), requireWorkspaceMember(), wrap(timeline.getTimeline));
+router.get("/:workspaceId/projects/:projectId/members", validateIds(["workspaceId", "projectId"]), requireWorkspaceMember(), wrap(c.listProjectMembers));
+router.post("/:workspaceId/projects/:projectId/members", validateIds(["workspaceId", "projectId"]), requireWorkspaceMember({ role: "manager" }), wrap(c.addProjectMember));
+router.delete("/:workspaceId/projects/:projectId/members/:userId", validateIds(["workspaceId", "projectId", "userId"]), requireWorkspaceMember({ role: "manager" }), wrap(c.removeProjectMember));
 router.post("/:workspaceId/projects/:projectId/milestones", validateIds(["workspaceId", "projectId"]), requireWorkspaceMember({ role: "manager" }), wrap(timeline.createMilestone));
 router.patch("/:workspaceId/projects/:projectId/milestones/:milestoneId", validateIds(["workspaceId", "projectId", "milestoneId"]), requireWorkspaceMember({ role: "manager" }), wrap(timeline.updateMilestone));
 router.delete("/:workspaceId/projects/:projectId/milestones/:milestoneId", validateIds(["workspaceId", "projectId", "milestoneId"]), requireWorkspaceMember({ role: "manager" }), wrap(timeline.deleteMilestone));

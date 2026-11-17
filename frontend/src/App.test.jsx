@@ -84,7 +84,9 @@ describe("authentication form", () => {
 
     await act(async () => root.render(<App />));
     await act(async () => {
-      container.querySelector("button[type='button']").click();
+      [...container.querySelectorAll("button[type='button']")]
+        .find((button) => button.textContent.includes("Create an account"))
+        .click();
     });
 
     expect(apiRequest).toHaveBeenCalledTimes(1);
@@ -223,6 +225,7 @@ describe("task calendar", () => {
       if (path === "/workspaces/2/notification-preferences") return { preferences: { assignment_enabled: true, mention_enabled: true, due_date_enabled: true } };
       if (path === "/workspaces/2/activity?limit=8") return { activity: [] };
       if (path === "/workspaces/2/projects/3/tasks?search=") return { tasks: [task] };
+      if (path === "/workspaces/2/tasks") return { tasks: [task] };
       if (path === "/workspaces/2/tasks/4" && options.method === "PATCH") {
         return { task: { ...task, due_date: options.body.dueDate } };
       }

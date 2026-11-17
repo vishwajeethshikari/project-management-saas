@@ -22,6 +22,7 @@ const organizationInvitationAcceptSchema = z.object({ token: z.string().trim().l
 
 const profileSchema = z.object({
   name: z.string().trim().min(1).max(100),
+  avatarUrl: z.string().trim().url().max(1000).nullable().optional(),
 });
 
 const invitationSchema = z.object({
@@ -35,6 +36,8 @@ const projectCreateSchema = z.object({
   description: z.string().trim().max(4000).optional(),
   status: z.enum(["in_progress", "completed", "archived"]).default("in_progress"),
   ownerId: positiveId.nullable().optional(),
+  managerId: positiveId.nullable().optional(),
+  startDate: optionalDate,
   dueDate: optionalDate,
 });
 
@@ -43,7 +46,19 @@ const projectUpdateSchema = z.object({
   description: z.string().trim().max(4000).optional(),
   status: z.enum(["in_progress", "completed", "archived"]).optional(),
   ownerId: positiveId.nullable().optional(),
+  managerId: positiveId.nullable().optional(),
+  startDate: optionalDate,
   dueDate: optionalDate,
+});
+
+const projectMemberSchema = z.object({
+  userId: positiveId,
+  role: z.enum(["manager", "member", "viewer"]).default("member"),
+});
+
+const labelSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  color: z.string().trim().max(30).default("#3b82f6"),
 });
 
 const taskCreateSchema = z.object({
@@ -168,6 +183,8 @@ module.exports = {
   subtaskUpdateSchema,
   teamSchema,
   teamMemberSchema,
+  projectMemberSchema,
+  labelSchema,
   passwordResetRequestSchema,
   passwordResetSchema,
 };

@@ -6,12 +6,19 @@ async function dashboard(req, res) {
   const result = await pool.query(
     `SELECT
        (SELECT COUNT(*) FROM projects WHERE workspace_id=$1)::int AS project_count,
+       (SELECT COUNT(*) FROM projects WHERE workspace_id=$1 AND status='in_progress')::int AS active_projects,
        (SELECT COUNT(*) FROM projects WHERE workspace_id=$1 AND status='completed')::int AS completed_projects,
+       (SELECT COUNT(*) FROM projects WHERE workspace_id=$1 AND status='archived')::int AS archived_projects,
        (SELECT COUNT(*) FROM tasks WHERE workspace_id=$1)::int AS task_count,
        (SELECT COUNT(*) FROM tasks WHERE workspace_id=$1 AND status='completed')::int AS completed_tasks,
        (SELECT COUNT(*) FROM tasks WHERE workspace_id=$1 AND status='todo')::int AS todo_tasks,
-       (SELECT COUNT(*) FROM tasks WHERE workspace_id=$1 AND status='in_progress')::int AS in_progress_tasks`,
-    [req.workspaceId]);
+       (SELECT COUNT(*) FROM tasks WHERE workspace_id=$1 AND status='in_progress')::int AS in_progress_tasks,
+       (SELECT COUNT(*) FROM tasks WHERE workspace_id=$1 AND status='in_review')::int AS in_review_tasks,
+       (SELECT COUNT(*) FROM tasks WHERE workspace_id=$1 AND status<>'completed' AND due_date<CURRENT_DATE)::int AS overdue_tasks,
+       (SELECT COUNT(*) FROM workspace_members WHERE workspace_id=$1)::int AS user_count,
+       (SELECT COUNT(*) FROM teams WHERE workspace_id=$1)::int AS team_count`,
+    [req.workspaceId]
+  );
   res.json({ success: true, dashboard: result.rows[0] });
 }
 
@@ -19,7 +26,8 @@ async function listNotifications(req, res) {
   const result = await pool.query(
     `SELECT * FROM notifications WHERE workspace_id=$1 AND user_id=$2
      ORDER BY created_at DESC LIMIT 100`,
-    [req.workspaceId, req.user.id]);
+    [req.workspaceId, req.user.id]
+  );
   res.json({ success: true, notifications: result.rows });
 }
 
@@ -27,9 +35,27 @@ async function markNotification(req, res) {
   const result = await pool.query(
     `UPDATE notifications SET is_read=TRUE
      WHERE id=$1 AND workspace_id=$2 AND user_id=$3 RETURNING *`,
-    [req.params.notificationId, req.workspaceId, req.user.id]);
+    [req.params.notificationId, req.workspaceId, req.user.id]
+  );
   if (!result.rows[0]) return apiError(res, 404, "Notification not found");
   res.json({ success: true, notification: result.rows[0] });
+}
+
+async function markAllNotifications(req, res) {
+  await pool.query(
+    "UPDATE notifications SET is_read = TRUE WHERE workspace_id = $1 AND user_id = $2",
+    [req.workspaceId, req.user.id]
+  );
+  res.json({ success: true, message: "All notifications marked as read" });
+}
+
+async function deleteNotification(req, res) {
+  const result = await pool.query(
+    "DELETE FROM notifications WHERE id = $1 AND workspace_id = $2 AND user_id = $3 RETURNING id",
+    [req.params.notificationId, req.workspaceId, req.user.id]
+  );
+  if (!result.rows[0]) return apiError(res, 404, "Notification not found");
+  res.status(204).send();
 }
 
 async function listActivity(req, res) {
@@ -42,7 +68,8 @@ async function listActivity(req, res) {
      LEFT JOIN users u ON u.id=actor_member.user_id
      WHERE a.workspace_id=$1
      ORDER BY a.created_at DESC,a.id DESC LIMIT $2`,
-    [req.workspaceId, limit]);
+    [req.workspaceId, limit]
+  );
   res.json({ success: true, activity: result.rows });
 }
 
@@ -51,6 +78,8 @@ module.exports = {
   getNotificationPreferences: notifications.getPreferences,
   listNotifications,
   markNotification,
+  markAllNotifications,
+  deleteNotification,
   listActivity,
   updateNotificationPreferences: notifications.updatePreferences,
 };

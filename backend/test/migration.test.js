@@ -82,3 +82,13 @@ test("organization membership backfill is idempotent and insert-only", () => {
   assert.match(migration, /CASE WHEN wm\.role = 'member' THEN 'employee'/i);
   assert.doesNotMatch(migration, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/i);
 });
+
+test("project members and enhancements migration is additive and non-destructive", () => {
+  const migration = readFileSync(join(__dirname, "../../database/migrations/010_project_members_and_enhancements.sql"), "utf8");
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS project_members/i);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS start_date/i);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS manager_id/i);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS avatar_url/i);
+  assert.doesNotMatch(migration, /\bDROP\s+(TABLE|DATABASE)\b/i);
+  assert.doesNotMatch(migration, /\bTRUNCATE\b/i);
+});

@@ -25,7 +25,7 @@ pool.removeAllListeners("error");
 pool.on("error", () => {});
 
 const migrationDirectory = path.resolve(__dirname, "../database/migrations");
-const migrationFiles = Array.from({ length: 9 }, (_, index) =>
+const migrationFiles = Array.from({ length: 10 }, (_, index) =>
   `${String(index + 1).padStart(3, "0")}_${[
     "create_users",
     "create_workspace_domain",
@@ -36,6 +36,7 @@ const migrationFiles = Array.from({ length: 9 }, (_, index) =>
     "time_reporting_recurring_rules",
     "workload_analytics_notifications",
     "backfill_organization_memberships",
+    "project_members_and_enhancements",
   ][index]}.sql`
 );
 
@@ -101,6 +102,7 @@ const migrationMarkers = [
   { id: "007", objects: [["recurring_tasks", "column", "recurrence_unit"], ["tasks", "column", "recurrence_id"], ["tasks", "column", "recurrence_run_at"]] },
   { id: "008", objects: [["notification_preferences", "table"], ["notifications", "column", "dedupe_key"], ["tasks", "column", "estimated_minutes"], ["tasks", "column", "completed_at"]] },
   { id: "009", dataOnly: true, objects: [] },
+  { id: "010", objects: [["project_members", "table"], ["projects", "column", "start_date"], ["projects", "column", "manager_id"]] },
 ];
 
 function quoteRelation(schema, table) {

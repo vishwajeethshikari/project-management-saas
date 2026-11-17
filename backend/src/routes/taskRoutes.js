@@ -11,13 +11,23 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(nex
 
 const router = express.Router();
 router.use(authenticateToken);
+router.get("/:workspaceId/my-work", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(c.getMyWork));
+router.get("/:workspaceId/search", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(c.globalSearch));
+router.get("/:workspaceId/tasks", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(c.listWorkspaceTasks));
+router.get("/:workspaceId/labels", validateIds(["workspaceId"]), requireWorkspaceMember(), wrap(c.listWorkspaceLabels));
+router.post("/:workspaceId/labels", validateIds(["workspaceId"]), requireWorkspaceMember({ role: "manager" }), wrap(c.createWorkspaceLabel));
 router.get("/:workspaceId/projects/:projectId/tasks", validateIds(["workspaceId", "projectId"]), requireWorkspaceMember(), wrap(c.listTasks));
 router.post("/:workspaceId/tasks", validateIds(["workspaceId"]), requireWorkspaceMember({ role: "manager" }), wrap(c.createTask));
 router.get("/:workspaceId/tasks/:taskId", validateIds(["workspaceId", "taskId"]), requireWorkspaceMember(), wrap(c.getTask));
 router.patch("/:workspaceId/tasks/:taskId", validateIds(["workspaceId", "taskId"]), requireWorkspaceMember({ role: "member" }), wrap(c.updateTask));
 router.delete("/:workspaceId/tasks/:taskId", validateIds(["workspaceId", "taskId"]), requireWorkspaceMember({ role: "manager" }), wrap(c.deleteTask));
+router.get("/:workspaceId/tasks/:taskId/labels", validateIds(["workspaceId", "taskId"]), requireWorkspaceMember(), wrap(c.listTaskLabels));
+router.post("/:workspaceId/tasks/:taskId/labels", validateIds(["workspaceId", "taskId"]), requireWorkspaceMember({ role: "member" }), wrap(c.addTaskLabel));
+router.delete("/:workspaceId/tasks/:taskId/labels/:labelId", validateIds(["workspaceId", "taskId", "labelId"]), requireWorkspaceMember({ role: "member" }), wrap(c.removeTaskLabel));
 router.get("/:workspaceId/tasks/:taskId/comments", validateIds(["workspaceId", "taskId"]), requireWorkspaceMember(), wrap(c.listComments));
 router.post("/:workspaceId/tasks/:taskId/comments", validateIds(["workspaceId", "taskId"]), requireWorkspaceMember({ role: "member" }), wrap(c.createComment));
+router.patch("/:workspaceId/tasks/:taskId/comments/:commentId", validateIds(["workspaceId", "taskId", "commentId"]), requireWorkspaceMember({ role: "member" }), wrap(c.updateComment));
+router.delete("/:workspaceId/tasks/:taskId/comments/:commentId", validateIds(["workspaceId", "taskId", "commentId"]), requireWorkspaceMember({ role: "member" }), wrap(c.deleteComment));
 router.get("/:workspaceId/tasks/:taskId/subtasks", validateIds(["workspaceId", "taskId"]), requireWorkspaceMember(), wrap(workflow.listSubtasks));
 router.post("/:workspaceId/tasks/:taskId/subtasks", validateIds(["workspaceId", "taskId"]), requireWorkspaceMember({ role: "member" }), wrap(workflow.createSubtask));
 router.patch("/:workspaceId/tasks/:taskId/subtasks/:subtaskId", validateIds(["workspaceId", "taskId", "subtaskId"]), requireWorkspaceMember({ role: "member" }), wrap(workflow.updateSubtask));

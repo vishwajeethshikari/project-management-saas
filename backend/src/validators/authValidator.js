@@ -22,4 +22,9 @@ const loginSchema = z.object({
   ),
 });
 
-module.exports = { registerSchema, loginSchema };
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(72),
+  newPassword: passwordSchema,
+});
+
+module.exports = { registerSchema, loginSchema, changePasswordSchema };

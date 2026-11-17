@@ -1,5 +1,5 @@
 const pool = require("../config/db");
-const { taskCreateSchema, taskUpdateSchema, taskListQuerySchema, commentSchema } = require("../validators/domainValidator");
+const { taskCreateSchema, taskUpdateSchema, taskListQuerySchema, commentSchema, labelSchema } = require("../validators/domainValidator");
 const { validationError, apiError } = require("../utils/api");
 const { removeStoredAttachmentFiles } = require("./attachmentController");
 const { createNotification } = require("./notificationController");
@@ -15,7 +15,10 @@ async function listTasks(req, res) {
     priority: "CASE t.priority WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END",
     title: "t.title",
   }[sort] || "t.created_at";
-  const project = await pool.query("SELECT id FROM projects WHERE id=$1 AND workspace_id=$2", [req.params.projectId, req.workspaceId]);
+  const project = await pool.query(
+    "SELECT id FROM projects WHERE id=$1 AND workspace_id=$2",
+    [req.params.projectId, req.workspaceId]
+  );
   if (!project.rows[0]) return apiError(res, 404, "Project not found");
   const result = await pool.query(
     `SELECT t.*, p.name AS project_name, u.name AS assignee_name
@@ -57,8 +60,8 @@ async function createTask(req, res) {
      (workspace_id, project_id, title, description, status, priority, assignee_id, start_date, due_date, estimated_minutes, created_by, completed_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CASE WHEN $5::varchar(20)='completed' THEN NOW() ELSE NULL END) RETURNING *`,
     [req.workspaceId, parsed.data.projectId, parsed.data.title, parsed.data.description || null,
-     parsed.data.status, parsed.data.priority, parsed.data.assigneeId || null,
-     parsed.data.startDate || null, parsed.data.dueDate || null, parsed.data.estimatedMinutes ?? null, req.user.id]);
+    parsed.data.status, parsed.data.priority, parsed.data.assigneeId || null,
+    parsed.data.startDate || null, parsed.data.dueDate || null, parsed.data.estimatedMinutes ?? null, req.user.id]);
   if (result.rows[0].assignee_id != null) {
     await createNotification({
       workspaceId: req.workspaceId,
@@ -79,8 +82,27 @@ async function createTask(req, res) {
 
 async function getTask(req, res) {
   const result = await pool.query(
-    "SELECT * FROM tasks WHERE id = $1 AND workspace_id = $2",
-    [req.params.taskId, req.workspaceId]);
+    `SELECT t.*, p.name AS project_name, u.name AS assignee_name,
+            (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id)::int AS subtasks_count,
+            (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.is_completed = true)::int AS completed_subtasks_count,
+            CASE
+              WHEN (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id) = 0 THEN
+                CASE WHEN t.status = 'completed' THEN 100 ELSE 0 END
+              ELSE
+                ROUND(((SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.is_completed = true)::numeric /
+                       (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id)::numeric) * 100)
+            END::int AS progress_percentage,
+            COALESCE((
+              SELECT json_agg(json_build_object('id', l.id, 'name', l.name, 'color', l.color))
+              FROM task_labels tl JOIN labels l ON l.id = tl.label_id
+              WHERE tl.task_id = t.id
+            ), '[]'::json) AS labels
+     FROM tasks t
+     JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
+     LEFT JOIN users u ON u.id = t.assignee_id
+     WHERE t.id = $1 AND t.workspace_id = $2`,
+    [req.params.taskId, req.workspaceId]
+  );
   if (!result.rows[0]) return apiError(res, 404, "Task not found");
   res.json({ success: true, task: result.rows[0] });
 }
@@ -161,7 +183,9 @@ async function listComments(req, res) {
   const task = await pool.query("SELECT id FROM tasks WHERE id=$1 AND workspace_id=$2", [req.params.taskId, req.workspaceId]);
   if (!task.rows[0]) return apiError(res, 404, "Task not found");
   const result = await pool.query(
-    `SELECT c.*, u.name AS author_name FROM task_comments c LEFT JOIN workspace_members author_member ON author_member.workspace_id=c.workspace_id AND author_member.user_id=c.user_id LEFT JOIN users u ON u.id=author_member.user_id
+    `SELECT c.*, u.name AS author_name FROM task_comments c
+     LEFT JOIN workspace_members author_member ON author_member.workspace_id=c.workspace_id AND author_member.user_id=c.user_id
+     LEFT JOIN users u ON u.id=author_member.user_id
      WHERE c.task_id=$1 AND c.workspace_id=$2 ORDER BY c.created_at`,
     [req.params.taskId, req.workspaceId]);
   res.json({ success: true, comments: result.rows });
@@ -202,4 +226,205 @@ async function createComment(req, res) {
   res.status(201).json({ success: true, comment: result.rows[0] });
 }
 
-module.exports = { listTasks, createTask, getTask, updateTask, deleteTask, listComments, createComment };
+async function updateComment(req, res) {
+  const parsed = commentSchema.safeParse(req.body);
+  if (!parsed.success) return validationError(res, parsed.error);
+  const comment = await pool.query(
+    "SELECT * FROM task_comments WHERE id=$1 AND task_id=$2 AND workspace_id=$3",
+    [req.params.commentId, req.params.taskId, req.workspaceId]
+  );
+  if (!comment.rows[0]) return apiError(res, 404, "Comment not found");
+  if (String(comment.rows[0].user_id) !== String(req.user.id) && !hasMinimumRole(req.workspaceRole, "manager")) {
+    return apiError(res, 403, "You can only edit your own comments");
+  }
+  const result = await pool.query(
+    "UPDATE task_comments SET body=$1, updated_at=NOW() WHERE id=$2 RETURNING *",
+    [parsed.data.body, req.params.commentId]
+  );
+  res.json({ success: true, comment: result.rows[0] });
+}
+
+async function deleteComment(req, res) {
+  const comment = await pool.query(
+    "SELECT * FROM task_comments WHERE id=$1 AND task_id=$2 AND workspace_id=$3",
+    [req.params.commentId, req.params.taskId, req.workspaceId]
+  );
+  if (!comment.rows[0]) return apiError(res, 404, "Comment not found");
+  if (String(comment.rows[0].user_id) !== String(req.user.id) && !hasMinimumRole(req.workspaceRole, "manager")) {
+    return apiError(res, 403, "You can only delete your own comments");
+  }
+  await pool.query("DELETE FROM task_comments WHERE id=$1", [req.params.commentId]);
+  res.status(204).send();
+}
+
+async function listWorkspaceLabels(req, res) {
+  const result = await pool.query(
+    "SELECT * FROM labels WHERE workspace_id = $1 ORDER BY name ASC",
+    [req.workspaceId]
+  );
+  res.json({ success: true, labels: result.rows });
+}
+
+async function createWorkspaceLabel(req, res) {
+  const parsed = labelSchema.safeParse(req.body);
+  if (!parsed.success) return validationError(res, parsed.error);
+  const result = await pool.query(
+    "INSERT INTO labels (workspace_id, name, color) VALUES ($1, $2, $3) RETURNING *",
+    [req.workspaceId, parsed.data.name, parsed.data.color || "#64748b"]
+  );
+  res.status(201).json({ success: true, label: result.rows[0] });
+}
+
+async function listTaskLabels(req, res) {
+  const task = await pool.query("SELECT id FROM tasks WHERE id=$1 AND workspace_id=$2", [req.params.taskId, req.workspaceId]);
+  if (!task.rows[0]) return apiError(res, 404, "Task not found");
+  const result = await pool.query(
+    `SELECT l.* FROM labels l
+     JOIN task_labels tl ON tl.label_id = l.id
+     WHERE tl.task_id = $1 AND l.workspace_id = $2
+     ORDER BY l.name ASC`,
+    [req.params.taskId, req.workspaceId]
+  );
+  res.json({ success: true, labels: result.rows });
+}
+
+async function addTaskLabel(req, res) {
+  const { labelId } = req.body;
+  if (!labelId) return apiError(res, 400, "labelId is required");
+  const task = await pool.query("SELECT id FROM tasks WHERE id=$1 AND workspace_id=$2", [req.params.taskId, req.workspaceId]);
+  if (!task.rows[0]) return apiError(res, 404, "Task not found");
+  const label = await pool.query("SELECT id FROM labels WHERE id=$1 AND workspace_id=$2", [labelId, req.workspaceId]);
+  if (!label.rows[0]) return apiError(res, 404, "Label not found");
+  await pool.query(
+    "INSERT INTO task_labels (workspace_id, task_id, label_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+    [req.workspaceId, req.params.taskId, labelId]
+  );
+  res.status(201).json({ success: true });
+}
+
+async function removeTaskLabel(req, res) {
+  const result = await pool.query(
+    "DELETE FROM task_labels WHERE task_id = $1 AND label_id = $2 RETURNING task_id",
+    [req.params.taskId, req.params.labelId]
+  );
+  res.json({ success: true });
+}
+
+async function listWorkspaceTasks(req, res) {
+  const { search, status, priority, assigneeId, projectId } = req.query;
+  const result = await pool.query(
+    `SELECT t.*, p.name AS project_name, u.name AS assignee_name,
+            (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id)::int AS subtasks_count,
+            (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.is_completed = true)::int AS completed_subtasks_count,
+            COALESCE((
+              SELECT json_agg(json_build_object('id', l.id, 'name', l.name, 'color', l.color))
+              FROM task_labels tl JOIN labels l ON l.id = tl.label_id
+              WHERE tl.task_id = t.id
+            ), '[]'::json) AS labels
+     FROM tasks t
+     JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
+     LEFT JOIN users u ON u.id = t.assignee_id
+     WHERE t.workspace_id = $1
+       AND ($2::text IS NULL OR $2 = '' OR t.title ILIKE '%' || $2 || '%' OR COALESCE(t.description, '') ILIKE '%' || $2 || '%')
+       AND ($3::text IS NULL OR t.status = $3)
+       AND ($4::text IS NULL OR t.priority = $4)
+       AND ($5::bigint IS NULL OR t.assignee_id = $5)
+       AND ($6::bigint IS NULL OR t.project_id = $6)
+     ORDER BY t.created_at DESC`,
+    [req.workspaceId, search || null, status || null, priority || null, assigneeId || null, projectId || null]
+  );
+  res.json({ success: true, tasks: result.rows });
+}
+
+async function getMyWork(req, res) {
+  const result = await pool.query(
+    `SELECT t.*, p.name AS project_name
+     FROM tasks t
+     JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
+     WHERE t.workspace_id = $1 AND t.assignee_id = $2
+     ORDER BY t.due_date ASC NULLS LAST, t.created_at DESC`,
+    [req.workspaceId, req.user.id]
+  );
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const overdue = [];
+  const dueToday = [];
+  const upcoming = [];
+  for (const task of result.rows) {
+    if (task.status === "completed") continue;
+    if (!task.due_date) {
+      upcoming.push(task);
+      continue;
+    }
+    const dueStr = new Date(task.due_date).toISOString().slice(0, 10);
+    if (dueStr < todayStr) overdue.push(task);
+    else if (dueStr === todayStr) dueToday.push(task);
+    else upcoming.push(task);
+  }
+  const myWork = {
+    tasks: result.rows,
+    overdue,
+    dueToday,
+    upcoming,
+    stats: {
+      total: result.rows.length,
+      overdue: overdue.length,
+      dueToday: dueToday.length,
+      upcoming: upcoming.length,
+    },
+  };
+  res.json({ success: true, myWork, tasks: result.rows, overdue, dueToday, upcoming });
+}
+
+async function globalSearch(req, res) {
+  const query = String(req.query.q || req.query.query || "").trim();
+  if (!query) {
+    return res.json({ success: true, results: { projects: [], tasks: [], members: [] } });
+  }
+  const term = `%${query}%`;
+  const [projects, tasks, members] = await Promise.all([
+    pool.query(
+      "SELECT id, name, description, status FROM projects WHERE workspace_id = $1 AND (name ILIKE $2 OR COALESCE(description,'') ILIKE $2) LIMIT 10",
+      [req.workspaceId, term]
+    ),
+    pool.query(
+      `SELECT t.id, t.title, t.status, t.priority, p.name AS project_name
+       FROM tasks t JOIN projects p ON p.id = t.project_id
+       WHERE t.workspace_id = $1 AND (t.title ILIKE $2 OR COALESCE(t.description,'') ILIKE $2) LIMIT 10`,
+      [req.workspaceId, term]
+    ),
+    pool.query(
+      `SELECT u.id, u.name, u.email, wm.role FROM workspace_members wm JOIN users u ON u.id = wm.user_id
+       WHERE wm.workspace_id = $1 AND (u.name ILIKE $2 OR u.email ILIKE $2) LIMIT 10`,
+      [req.workspaceId, term]
+    ),
+  ]);
+  res.json({
+    success: true,
+    results: {
+      projects: projects.rows,
+      tasks: tasks.rows,
+      members: members.rows,
+    },
+  });
+}
+
+module.exports = {
+  listTasks,
+  createTask,
+  getTask,
+  updateTask,
+  deleteTask,
+  listComments,
+  createComment,
+  updateComment,
+  deleteComment,
+  listWorkspaceTasks,
+  listWorkspaceLabels,
+  createWorkspaceLabel,
+  listTaskLabels,
+  addTaskLabel,
+  removeTaskLabel,
+  getMyWork,
+  globalSearch,
+};

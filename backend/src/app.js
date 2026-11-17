@@ -12,15 +12,38 @@ const { logError } = require("./utils/errorLogging");
 
 const app = express();
 
-const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:5173")
+const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:5173,http://127.0.0.1:5173")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (process.env.NODE_ENV !== "production") {
+    try {
+      const parsed = new URL(origin);
+      if (
+        parsed.hostname === "localhost" ||
+        parsed.hostname === "127.0.0.1" ||
+        parsed.hostname === "::1" ||
+        parsed.hostname.startsWith("192.168.") ||
+        parsed.hostname.startsWith("10.") ||
+        parsed.hostname.endsWith(".local")
+      ) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (isAllowedOrigin(origin)) {
         return callback(null, true);
       }
       return callback(new Error("Origin is not allowed by CORS"));
@@ -60,6 +83,13 @@ app.get("/", (req, res) => {
 app.use((error, req, res, next) => {
   if (res.headersSent) {
     return next(error);
+  }
+
+  if (error && error.message && error.message.includes("CORS")) {
+    return res.status(403).json({
+      success: false,
+      message: error.message,
+    });
   }
 
   logError("Unhandled API request error", error);
