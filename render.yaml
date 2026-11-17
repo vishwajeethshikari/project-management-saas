@@ -4,10 +4,11 @@ services:
     runtime: node
     repo: https://github.com/vishwajeethshikari/project-management-saas
     branch: feature/full-stack-integration
+    rootDir: backend
     region: singapore
     plan: 0.5c-512mb
-    buildCommand: npm ci --prefix backend --omit=dev && npm run build --prefix backend
-    startCommand: npm start --prefix backend
+    buildCommand: npm ci
+    startCommand: npm start
     healthCheckPath: /api/ready
     autoDeployTrigger: commit
     buildFilter:
