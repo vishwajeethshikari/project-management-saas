@@ -78,3 +78,30 @@ dedicated test-named database, never the application or production database.
 See [API contracts](docs/api-contracts.md),
 [Architecture](docs/architecture.md), and
 [Database schema](docs/database-schema.md).
+
+## Render deployment
+
+The root [`render.yaml`](render.yaml) Blueprint defines the API, static
+frontend, and PostgreSQL database for the `feature/full-stack-integration`
+branch. It uses a paid API plan, a 1 GB persistent disk for task attachments,
+and a paid PostgreSQL plan; check Render's current pricing and your workspace
+before provisioning. The static site is free to deploy.
+
+To deploy, connect the GitHub repository in the Render Dashboard, create a
+Blueprint instance from `render.yaml`, and review the service names, assigned
+`onrender.com` domains, region, plans, and estimated costs before confirming.
+The YAML expects the API domain
+`projectflow-fsi-api.onrender.com` and frontend domain
+`projectflow-fsi-web.onrender.com`; update `VITE_API_URL`, `CORS_ORIGINS`, and
+`FRONTEND_URL` if Render assigns different domains. Enter valid Resend
+`EMAIL_API_KEY` and `EMAIL_FROM` values when prompted; production startup
+requires both. Render generates `JWT_SECRET` and supplies the private
+PostgreSQL connection string.
+
+Database migrations are deliberately not run by the Blueprint. After explicit
+approval to migrate, apply the ordered migrations in `database/schema.sql` to
+the Render database, then verify `/api/ready` and the frontend. Do not run
+`backend/scripts/seed-demo.js` in production; create or use a real account
+without publishing demo credentials. See
+[Render Blueprint documentation](https://render.com/docs/blueprint-spec) and
+[Render CLI documentation](https://render.com/docs/cli).

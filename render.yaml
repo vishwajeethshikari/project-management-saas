@@ -1,0 +1,67 @@
+services:
+  - type: web
+    name: projectflow-fsi-api
+    runtime: node
+    repo: https://github.com/vishwajeethshikari/project-management-saas
+    branch: feature/full-stack-integration
+    region: singapore
+    plan: 0.5c-512mb
+    buildCommand: npm ci --prefix backend --omit=dev && npm run build --prefix backend
+    startCommand: npm start --prefix backend
+    healthCheckPath: /api/ready
+    autoDeployTrigger: commit
+    buildFilter:
+      includedPaths:
+        - backend/**
+        - database/**
+        - render.yaml
+    disk:
+      name: projectflow-attachments
+      mountPath: /var/data/attachments
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: projectflow-fsi-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://projectflow-fsi-web.onrender.com
+      - key: FRONTEND_URL
+        value: https://projectflow-fsi-web.onrender.com
+      - key: ATTACHMENT_STORAGE_DIR
+        value: /var/data/attachments
+      - key: EMAIL_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+  - type: web
+    name: projectflow-fsi-web
+    runtime: static
+    repo: https://github.com/vishwajeethshikari/project-management-saas
+    branch: feature/full-stack-integration
+    buildCommand: npm ci --prefix frontend && npm run build --prefix frontend
+    staticPublishPath: frontend/dist
+    autoDeployTrigger: commit
+    buildFilter:
+      includedPaths:
+        - frontend/**
+        - render.yaml
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: VITE_API_URL
+        value: https://projectflow-fsi-api.onrender.com/api
+
+databases:
+  - name: projectflow-fsi-db
+    databaseName: projectflow
+    plan: 0.1c-256mb
+    region: singapore
+    postgresMajorVersion: "17"
