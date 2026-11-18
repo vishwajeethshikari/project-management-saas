@@ -27,9 +27,10 @@ local development. Production requires `DATABASE_URL`. Set
 Railway's public TCP proxy. Use `verify-full` when the database endpoint has a
 trusted certificate. If the connection URL already has PostgreSQL SSL query
 parameters, leave `DATABASE_SSL_MODE` empty. Generate a random `JWT_SECRET` of
-at least 32 bytes. `CLIENT_URL` is a comma-separated allowlist of browser
-origins; set `FRONTEND_URL` to the frontend origin for invitation links. Never
-commit `.env` or print secret values in logs.
+at least 32 bytes. `CORS_ORIGINS` and `CLIENT_URL` are comma-separated
+allowlists of exact browser origins (the deployed Vercel origin is allowed
+explicitly). Set `FRONTEND_URL` to the frontend origin for invitation links.
+Never commit `.env` or print secret values in logs.
 
 Task attachments are limited to 10 MB and validated as PDF, GIF, JPEG, PNG, or
 WebP. The backend stores files outside its static/public paths. Set

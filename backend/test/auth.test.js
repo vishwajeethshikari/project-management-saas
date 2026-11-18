@@ -1,6 +1,7 @@
 process.env.JWT_SECRET = require("node:crypto").randomBytes(32).toString("hex");
 process.env.JWT_EXPIRES_IN = "1h";
 process.env.CLIENT_URL = "https://app.example.test,https://admin.example.test";
+process.env.CORS_ORIGINS = "https://cors-configured.example.test";
 
 const assert = require("node:assert/strict");
 const { after, before, test } = require("node:test");
@@ -289,6 +290,8 @@ test("allows configured browser origins and local development with credentials",
   for (const origin of [
     "https://app.example.test",
     "https://admin.example.test",
+    "https://cors-configured.example.test",
+    "https://project-management-saas-2213.vercel.app",
     "http://localhost:5173",
   ]) {
     const response = await fetch(`${baseUrl}/api/health`, {
@@ -298,6 +301,28 @@ test("allows configured browser origins and local development with credentials",
     assert.equal(response.headers.get("access-control-allow-origin"), origin);
     assert.equal(response.headers.get("access-control-allow-credentials"), "true");
   }
+});
+
+test("handles credentialed preflight for the production frontend origin", async () => {
+  const response = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "OPTIONS",
+    headers: {
+      origin: "https://project-management-saas-2213.vercel.app",
+      "access-control-request-method": "POST",
+      "access-control-request-headers": "authorization,content-type",
+    },
+  });
+
+  assert.equal(response.status, 204);
+  assert.equal(
+    response.headers.get("access-control-allow-origin"),
+    "https://project-management-saas-2213.vercel.app"
+  );
+  assert.equal(response.headers.get("access-control-allow-credentials"), "true");
+  assert.match(response.headers.get("access-control-allow-methods"), /POST/);
+  assert.match(response.headers.get("access-control-allow-methods"), /OPTIONS/);
+  assert.match(response.headers.get("access-control-allow-headers"), /authorization/i);
+  assert.match(response.headers.get("access-control-allow-headers"), /content-type/i);
 });
 
 test("rejects unconfigured origins rather than allowing every origin", async () => {

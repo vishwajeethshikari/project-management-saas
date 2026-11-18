@@ -12,13 +12,15 @@ const { logError } = require("./utils/errorLogging");
 
 const app = express();
 
-const configuredOrigins = (process.env.CLIENT_URL || "")
-  .split(",")
+const productionFrontendOrigin = "https://project-management-saas-2213.vercel.app";
+const configuredOrigins = [process.env.CORS_ORIGINS, process.env.CLIENT_URL]
+  .flatMap((value) => (value || "").split(","))
   .map((origin) => origin.trim())
   .filter(Boolean);
 const allowedOrigins = new Set([
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  productionFrontendOrigin,
   ...configuredOrigins,
 ]);
 
@@ -54,6 +56,9 @@ app.use(
       return callback(new Error("Origin is not allowed by CORS"));
     },
     credentials: true,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Authorization", "Content-Type"],
+    optionsSuccessStatus: 204,
   })
 );
 app.use(express.json());

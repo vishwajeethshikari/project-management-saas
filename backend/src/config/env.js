@@ -88,30 +88,35 @@ function validateEnvironment(env = process.env) {
     );
   }
 
-  const clientOrigins = (env.CLIENT_URL || "")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-  for (const origin of clientOrigins) {
-    if (origin === "*") {
-      errors.push("CLIENT_URL must contain comma-separated HTTP or HTTPS origins; '*' is not allowed.");
-      break;
-    }
+  for (const [variable, configuredOrigins] of [
+    ["CORS_ORIGINS", env.CORS_ORIGINS],
+    ["CLIENT_URL", env.CLIENT_URL],
+  ]) {
+    const origins = (configuredOrigins || "")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+    for (const origin of origins) {
+      if (origin === "*") {
+        errors.push(`${variable} must contain comma-separated HTTP or HTTPS origins; '*' is not allowed.`);
+        break;
+      }
 
-    let parsedOrigin;
-    try {
-      parsedOrigin = new URL(origin);
-    } catch {
-      errors.push("CLIENT_URL must contain comma-separated HTTP or HTTPS origins.");
-      break;
-    }
+      let parsedOrigin;
+      try {
+        parsedOrigin = new URL(origin);
+      } catch {
+        errors.push(`${variable} must contain comma-separated HTTP or HTTPS origins.`);
+        break;
+      }
 
-    if (
-      !["http:", "https:"].includes(parsedOrigin.protocol) ||
-      parsedOrigin.origin !== origin
-    ) {
-      errors.push("CLIENT_URL must contain comma-separated HTTP or HTTPS origins without paths or wildcards.");
-      break;
+      if (
+        !["http:", "https:"].includes(parsedOrigin.protocol) ||
+        parsedOrigin.origin !== origin
+      ) {
+        errors.push(`${variable} must contain comma-separated HTTP or HTTPS origins without paths or wildcards.`);
+        break;
+      }
     }
   }
 

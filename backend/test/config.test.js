@@ -43,6 +43,7 @@ test("validates production client origins and rejects wildcard CORS", () => {
     DATABASE_URL: "postgresql://user:password@localhost:5432/app",
     JWT_SECRET: "a".repeat(32),
     CLIENT_URL: "https://app.example.test,https://admin.example.test",
+    CORS_ORIGINS: "https://cors.example.test",
     EMAIL_API_KEY: "configured-key",
     EMAIL_FROM: "ProjectFlow <no-reply@example.test>",
   };
@@ -54,6 +55,14 @@ test("validates production client origins and rejects wildcard CORS", () => {
   assert.throws(
     () => validateEnvironment({ ...validProductionEnvironment, CLIENT_URL: "*" }),
     /CLIENT_URL.*not allowed/
+  );
+  assert.throws(
+    () => validateEnvironment({ ...validProductionEnvironment, CORS_ORIGINS: "*" }),
+    /CORS_ORIGINS.*not allowed/
+  );
+  assert.throws(
+    () => validateEnvironment({ ...validProductionEnvironment, CORS_ORIGINS: "https://cors.example.test/path" }),
+    /CORS_ORIGINS.*without paths/
   );
 });
 
