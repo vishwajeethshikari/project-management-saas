@@ -91,3 +91,8 @@ password recovery links through Resend. Without those settings, local
 development returns a manual invitation link or recovery token; production
 responses never expose either token. Configure `FRONTEND_URL` for generated
 links.
+
+The browser session uses an HttpOnly cookie. When the frontend and API are on
+different sites, production sets `SameSite=None; Secure` so credentialed
+cross-origin fetches can send it. Browsers that block third-party cookies may
+still require a same-site custom domain or reverse proxy.

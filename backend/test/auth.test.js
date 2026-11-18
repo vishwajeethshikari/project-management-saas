@@ -249,6 +249,33 @@ test("authenticates using the HttpOnly session cookie and clears it on logout", 
   assert.match(logout.headers.get("set-cookie"), /Expires=Thu, 01 Jan 1970/i);
 });
 
+test("production login sets a cross-site secure cookie accepted by /me", async () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+
+  try {
+    const login = await request("/api/auth/login", {
+      method: "POST",
+      body: { email: "test@example.com", password: "secure-pass-123" },
+    });
+
+    assert.equal(login.status, 200);
+    const setCookie = login.headers.get("set-cookie");
+    assert.match(setCookie, /projectflow_session=/);
+    assert.match(setCookie, /HttpOnly/i);
+    assert.match(setCookie, /SameSite=None/i);
+    assert.match(setCookie, /Secure/i);
+
+    const cookie = setCookie.split(";")[0];
+    const profile = await request("/api/auth/me", { cookie });
+    assert.equal(profile.status, 200);
+    assert.equal(profile.body.user.id, "1");
+  } finally {
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+  }
+});
+
 test("reports liveness separately from PostgreSQL readiness", async () => {
   const ready = await request("/api/ready");
   const live = await request("/api/health");
