@@ -126,6 +126,15 @@ test(
         );
         tenant.resources.taskId = firstTask.rows[0].id;
         tenant.resources.taskTitle = `${label} task`;
+        const taskLabel = await setupPool.query(
+          "INSERT INTO labels(workspace_id,name) VALUES($1,$2) RETURNING id",
+          [tenant.resources.workspaceId, `${label} label`]
+        );
+        tenant.resources.labelId = taskLabel.rows[0].id;
+        await setupPool.query(
+          "INSERT INTO task_labels(workspace_id,task_id,label_id) VALUES($1,$2,$3)",
+          [tenant.resources.workspaceId, tenant.resources.taskId, tenant.resources.labelId]
+        );
         const secondTask = await setupPool.query(
           "INSERT INTO tasks(workspace_id,project_id,title,created_by) VALUES($1,$2,$3,$4) RETURNING id",
           [tenant.resources.workspaceId, tenant.resources.projectId, `${label} blocker`, tenant.users.owner.id]
@@ -254,6 +263,8 @@ test(
         ["GET", `/api/workspaces/${a.workspaceId}/tasks/${b.taskId}`],
         ["PATCH", `/api/workspaces/${a.workspaceId}/tasks/${b.taskId}`, { title: "Changed" }],
         ["DELETE", `/api/workspaces/${a.workspaceId}/tasks/${b.taskId}`],
+        ["DELETE", `/api/workspaces/${a.workspaceId}/tasks/${b.taskId}/labels/${b.labelId}`],
+        ["DELETE", `/api/workspaces/${a.workspaceId}/tasks/${a.taskId}/labels/${b.labelId}`],
         ["GET", `/api/workspaces/${a.workspaceId}/tasks/${b.taskId}/comments`],
         ["POST", `/api/workspaces/${a.workspaceId}/tasks/${b.taskId}/comments`, { body: "Cross comment" }],
         ["GET", `/api/workspaces/${a.workspaceId}/tasks/${b.taskId}/subtasks`],
@@ -286,6 +297,22 @@ test(
           assert.ok(denied.has(result.status), `${role} ${method} ${route} returned ${result.status}`);
         }
       }
+
+      const protectedTaskLabel = await setupPool.query(
+        "SELECT 1 FROM task_labels WHERE workspace_id=$1 AND task_id=$2 AND label_id=$3",
+        [b.workspaceId, b.taskId, b.labelId]
+      );
+      assert.equal(protectedTaskLabel.rowCount, 1);
+      const removedTaskLabel = await request(
+        `/api/workspaces/${a.workspaceId}/tasks/${a.taskId}/labels/${a.labelId}`,
+        { method: "DELETE", token: orgA.tokens.employee }
+      );
+      assert.equal(removedTaskLabel.status, 200);
+      const remainingTaskLabel = await setupPool.query(
+        "SELECT 1 FROM task_labels WHERE workspace_id=$1 AND task_id=$2 AND label_id=$3",
+        [a.workspaceId, a.taskId, a.labelId]
+      );
+      assert.equal(remainingTaskLabel.rowCount, 0);
 
       const crossUpload = await upload(
         `/api/workspaces/${a.workspaceId}/tasks/${b.taskId}/attachments`, orgA.tokens.owner

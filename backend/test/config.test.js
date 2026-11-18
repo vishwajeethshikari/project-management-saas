@@ -75,6 +75,51 @@ test("reports missing required configuration without exposing secret values", ()
   );
 });
 
+test("requires DATABASE_URL instead of individual database settings in production", () => {
+  assert.throws(
+    () =>
+      validateEnvironment({
+        NODE_ENV: "production",
+        DB_USER: "local-user",
+        JWT_SECRET: "a".repeat(32),
+        EMAIL_API_KEY: "configured-key",
+        EMAIL_FROM: "ProjectFlow <no-reply@example.test>",
+      }),
+    /DATABASE_URL is required in production/
+  );
+});
+
+test("validates database TLS mode and rejects mixed URL and environment TLS settings", () => {
+  const validEnvironment = {
+    DATABASE_URL: "postgresql://user:password@db.example.test:5432/app",
+    JWT_SECRET: "a".repeat(32),
+  };
+
+  assert.doesNotThrow(() =>
+    validateEnvironment({
+      ...validEnvironment,
+      DATABASE_SSL_MODE: "verify-full",
+    })
+  );
+  assert.throws(
+    () =>
+      validateEnvironment({
+        ...validEnvironment,
+        DATABASE_SSL_MODE: "prefer",
+      }),
+    /DATABASE_SSL_MODE must be/
+  );
+  assert.throws(
+    () =>
+      validateEnvironment({
+        ...validEnvironment,
+        DATABASE_URL: `${validEnvironment.DATABASE_URL}?sslmode=require`,
+        DATABASE_SSL_MODE: "require",
+      }),
+    /Configure PostgreSQL TLS/
+  );
+});
+
 test("rejects blank JWT secrets and invalid database ports", () => {
   assert.throws(
     () =>

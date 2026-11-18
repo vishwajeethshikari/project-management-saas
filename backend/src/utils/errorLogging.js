@@ -1,6 +1,7 @@
 function redactLogText(value) {
   return String(value || "")
-    .replace(/((?:postgres(?:ql)?|https?):\/\/[^:/\s]+:)[^@\s]+@/gi, "$1[REDACTED]@")
+    .replace(/postgres(?:ql)?:\/\/[^\s"'<>]+/gi, "[REDACTED_DATABASE_URL]")
+    .replace(/(https?:\/\/[^:/\s]+:)[^@\s]+@/gi, "$1[REDACTED]@")
     .replace(/((?:password|secret|token|api[_-]?key)\s*[=:]\s*)("[^\"]*"|'[^']*'|[^\s,;]+)/gi, "$1[REDACTED]");
 }
 

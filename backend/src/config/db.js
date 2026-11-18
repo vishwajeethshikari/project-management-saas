@@ -1,20 +1,14 @@
 
 const { Pool } = require("pg");
+const { getDatabaseConfig } = require("./databaseConfig");
 
-const pool = new Pool({
-  ...(process.env.DATABASE_URL
-    ? { connectionString: process.env.DATABASE_URL }
-    : {
-        host: process.env.DB_HOST || "localhost",
-        port: Number(process.env.DB_PORT) || 5432,
-        database: process.env.DB_NAME || "project_management_saas",
-        user: process.env.DB_USER,
-        password: process.env.DB_PASSWORD,
-      }),
-});
+const pool = new Pool(getDatabaseConfig());
 
 pool.on("error", (error) => {
-  console.error("Unexpected PostgreSQL pool error:", error.message);
+  console.error("Unexpected PostgreSQL pool error:", {
+    name: error.name,
+    ...(error.code ? { code: error.code } : {}),
+  });
 });
 
 module.exports = pool;

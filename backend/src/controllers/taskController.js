@@ -303,9 +303,21 @@ async function addTaskLabel(req, res) {
 }
 
 async function removeTaskLabel(req, res) {
-  const result = await pool.query(
-    "DELETE FROM task_labels WHERE task_id = $1 AND label_id = $2 RETURNING task_id",
-    [req.params.taskId, req.params.labelId]
+  const task = await pool.query(
+    "SELECT id FROM tasks WHERE id=$1 AND workspace_id=$2",
+    [req.params.taskId, req.workspaceId]
+  );
+  if (!task.rows[0]) return apiError(res, 404, "Task not found");
+
+  const label = await pool.query(
+    "SELECT id FROM labels WHERE id=$1 AND workspace_id=$2",
+    [req.params.labelId, req.workspaceId]
+  );
+  if (!label.rows[0]) return apiError(res, 404, "Label not found");
+
+  await pool.query(
+    "DELETE FROM task_labels WHERE workspace_id=$1 AND task_id=$2 AND label_id=$3",
+    [req.workspaceId, req.params.taskId, req.params.labelId]
   );
   res.json({ success: true });
 }

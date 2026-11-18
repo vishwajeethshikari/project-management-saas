@@ -31,8 +31,45 @@ function validateEnvironment(env = process.env) {
     ) {
       errors.push("DATABASE_URL must be a valid PostgreSQL connection URL.");
     }
-  } else if (!env.DB_USER || !env.DB_USER.trim()) {
+    if (
+      parsedUrl &&
+      env.DATABASE_SSL_MODE &&
+      [
+        "ssl",
+        "sslcert",
+        "sslkey",
+        "sslmode",
+        "sslrootcert",
+        "sslpassword",
+        "sslcrl",
+        "sslsni",
+      ].some((parameter) => parsedUrl.searchParams.has(parameter))
+    ) {
+      errors.push(
+        "Configure PostgreSQL TLS with DATABASE_SSL_MODE or DATABASE_URL SSL parameters, not both."
+      );
+    }
+  } else if (
+    env.NODE_ENV !== "production" &&
+    (!env.DB_USER || !env.DB_USER.trim())
+  ) {
     errors.push("DB_USER is required when DATABASE_URL is not configured.");
+  }
+
+  if (
+    env.NODE_ENV === "production" &&
+    (!databaseUrl || !databaseUrl.trim())
+  ) {
+    errors.push("DATABASE_URL is required in production.");
+  }
+
+  if (
+    env.DATABASE_SSL_MODE &&
+    !["disable", "require", "verify-full"].includes(env.DATABASE_SSL_MODE)
+  ) {
+    errors.push(
+      "DATABASE_SSL_MODE must be disable, require, or verify-full."
+    );
   }
 
   if (env.DB_PORT !== undefined && env.DB_PORT !== "") {

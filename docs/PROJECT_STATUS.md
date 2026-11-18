@@ -101,8 +101,8 @@ Conflicts in purpose: multiple `review-branches/*/frontend/src/App.jsx` copies i
 - **Tests present:** 9 backend test files and 2 frontend test files. Test cases were not run.
 - **Backend middleware:** `authenticateToken`, `optionalAuthenticateToken`, `requireWorkspaceMember`, `requireOrganizationMember`, `validateIds`; CORS and JSON parsing in `app.js`. No helmet/rate-limit middleware found.
 - **Server:** `server.js` validates required env, checks DB, starts Express, then schedules recurring-task and due-date jobs. Health and DB readiness are `/api/health`, `/api/ready`.
-- **CORS:** explicit `CORS_ORIGINS` list; defaults to localhost Vite origins; credentials enabled. No wildcard default.
-- **Environment variable names only:** `PORT`, `CORS_ORIGINS`, `DATABASE_URL`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `TEST_DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `EMAIL_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL`, `ATTACHMENT_STORAGE_DIR`, `NODE_ENV`, `VITE_API_URL`. `.env` values were not read or printed.
+- **CORS:** explicit `CLIENT_URL` allowlist plus localhost development origins; credentials enabled. No wildcard default.
+- **Environment variable names only:** `PORT`, `CLIENT_URL`, `DATABASE_URL`, `DATABASE_SSL_MODE`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `TEST_DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `EMAIL_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL`, `ATTACHMENT_STORAGE_DIR`, `NODE_ENV`, `VITE_API_URL`. `.env` values were not read or printed.
 
 ## 3. Database audit (live database inspected in Phase B/C)
 

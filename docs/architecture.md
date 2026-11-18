@@ -3,8 +3,8 @@
 ## Active application
 
 The active branch uses React/Vite, Express, and PostgreSQL. The frontend calls
-the REST API through `frontend/src/api.js`; the default API URL is
-`http://localhost:5000/api` and can be overridden by `VITE_API_URL`.
+the REST API through `frontend/src/api.js`; the API base defaults to `/api`
+and can be overridden by `VITE_API_URL`.
 
 ```text
 Browser
@@ -25,7 +25,7 @@ verified with `GET /api/auth/me`.
 
 `backend/src/server.js` loads dotenv, validates the configuration, and starts
 the Express app. The API configures JSON parsing and an origin allowlist from
-`CORS_ORIGINS`, then mounts authentication, organization, workspace, project,
+`CLIENT_URL`, then mounts authentication, organization, workspace, project,
 task, and collaboration routes. `GET /api/health` is liveness; `GET /api/ready` checks
 the PostgreSQL pool.
 
@@ -51,7 +51,7 @@ legacy manual schema definitions are no longer used.
   bytes.
 - Frontend: optionally copy `frontend/.env.example` to `frontend/.env` and set
   `VITE_API_URL`.
-- Set `CORS_ORIGINS` to the exact browser origins that should call the API.
+- Set `CLIENT_URL` to the comma-separated browser origins that should call the API.
 - For database integration checks, use a dedicated test-named database via
   `TEST_DATABASE_URL`; never point tests at the application or production
   database.

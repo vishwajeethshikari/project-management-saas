@@ -21,25 +21,31 @@ details and role requirements.
 Requirements: Node.js, npm, and PostgreSQL.
 
 From `backend/`, copy `.env.example` to `.env`. Configure either
-`DATABASE_URL` or the database host, port, name, username, and password.
-Generate a random `JWT_SECRET` of at least 32 bytes. `CORS_ORIGINS` is a
-comma-separated allowlist of browser origins. Never commit `.env` or print
-secret values in logs.
+`DATABASE_URL` or the database host, port, name, username, and password for
+local development. Production requires `DATABASE_URL`. Set
+`DATABASE_SSL_MODE=disable` for Railway private networking, or `require` for
+Railway's public TCP proxy. Use `verify-full` when the database endpoint has a
+trusted certificate. If the connection URL already has PostgreSQL SSL query
+parameters, leave `DATABASE_SSL_MODE` empty. Generate a random `JWT_SECRET` of
+at least 32 bytes. `CLIENT_URL` is a comma-separated allowlist of browser
+origins; set `FRONTEND_URL` to the frontend origin for invitation links. Never
+commit `.env` or print secret values in logs.
 
 Task attachments are limited to 10 MB and validated as PDF, GIF, JPEG, PNG, or
 WebP. The backend stores files outside its static/public paths. Set
 `ATTACHMENT_STORAGE_DIR` to a private persistent directory in deployments;
 the default is `backend/private-uploads`.
 
-From the repository root, create the database if needed and apply all
-versioned migrations:
+For an existing database, inspect its schema before applying the incremental
+migrations. For a newly created, empty database, use the separate
+[`database/fresh-install.sql`](../database/fresh-install.sql) script instead.
+Do not run either script automatically against production.
+
+From `backend/`, after setting `DATABASE_URL` in the current PowerShell session:
 
 ```powershell
-psql -U <db_user> -d <db_name> -f database/schema.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f ../database/fresh-install.sql
 ```
-
-Inspect a pre-existing schema before applying the migrations: they are
-additive, but do not alter incompatible legacy tables.
 
 Install and start:
 
@@ -64,6 +70,19 @@ For manual test-database connectivity checks, configure
 `TEST_DATABASE_URL` with a dedicated test-named database. The test database
 guard refuses the configured application database and production-marked
 targets.
+
+## Railway service settings
+
+This repository does not contain Railway service IDs or Railway
+configuration-as-code; `render.yaml` configures Render only. In Railway, set
+the API service root directory to `/backend`, build command to `npm ci`, start
+command to `npm start`, and HTTP health check path to `/api/health`. Configure
+the frontend as a separate service with root directory `/frontend`, build
+command `npm ci && npm run build`, output directory `dist`, and a fallback
+from client-side routes to `/index.html`. Set `VITE_API_URL` to the API's
+public origin followed by `/api`. Use the Railway Postgres private URL with
+`DATABASE_SSL_MODE=disable`, or the public TCP URL with
+`DATABASE_SSL_MODE=require`.
 
 ## Email delivery
 

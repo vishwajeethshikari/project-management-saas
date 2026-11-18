@@ -52,7 +52,7 @@ async function main() {
   process.env.JWT_EXPIRES_IN = "1h";
   process.env.NODE_ENV = "test";
   process.env.PORT = "5000";
-  process.env.CORS_ORIGINS = "http://localhost:4173";
+  process.env.CLIENT_URL = "http://localhost:4173";
   process.env.FRONTEND_URL = "http://localhost:4173";
   process.env.EMAIL_API_KEY = "";
   process.env.EMAIL_FROM = "";

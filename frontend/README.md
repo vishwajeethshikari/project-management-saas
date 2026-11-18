@@ -4,8 +4,10 @@ The React/Vite application uses `src/api.js` for JSON requests to the Express
 API. It includes credentials so the browser sends the HttpOnly JWT session
 cookie.
 
-The API defaults to `http://localhost:5000/api`. Override it by creating
-`.env` from `.env.example` and setting `VITE_API_URL`.
+The API base defaults to `/api`; the Vite development server proxies it to
+`http://localhost:5000`. For a separately hosted frontend, create `.env` from
+`.env.example` and set `VITE_API_URL` to the backend origin followed by `/api`
+(for example, `https://api.example.test/api`).
 
 ## Commands
 

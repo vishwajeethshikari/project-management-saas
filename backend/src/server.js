@@ -39,9 +39,15 @@ async function start() {
 }
 
 start().catch(async (error) => {
-  logError("Backend startup", error);
+  console.error("Backend startup failed:", {
+    name: error?.name || "Error",
+    ...(error?.code ? { code: error.code } : {}),
+  });
   try { await pool.end(); } catch (closeError) {
-    logError("PostgreSQL pool shutdown", closeError);
+    console.error("PostgreSQL pool shutdown failed:", {
+      name: closeError?.name || "Error",
+      ...(closeError?.code ? { code: closeError.code } : {}),
+    });
   }
   process.exitCode = 1;
 });
