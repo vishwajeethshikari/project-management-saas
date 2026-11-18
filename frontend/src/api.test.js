@@ -1,10 +1,54 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiRequest } from "./api";
+import { apiRequest, resolveApiUrl } from "./api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// ---------------------------------------------------------------------------
+// resolveApiUrl – URL normalization that prevents the "Cannot POST /auth/login"
+// error that occurs when VITE_API_URL is set to a bare origin without /api.
+// ---------------------------------------------------------------------------
+describe("resolveApiUrl", () => {
+  it("keeps /api unchanged (local Vite-proxy default)", () => {
+    expect(resolveApiUrl("/api")).toBe("/api");
+  });
+
+  it("strips a trailing slash from a relative path", () => {
+    expect(resolveApiUrl("/api/")).toBe("/api");
+  });
+
+  it("keeps a full URL that already includes the /api path", () => {
+    expect(resolveApiUrl("https://backend.railway.app/api")).toBe(
+      "https://backend.railway.app/api"
+    );
+  });
+
+  it("appends /api to a bare origin so auth routes resolve correctly", () => {
+    // This is the misconfiguration that causes "Cannot POST /auth/login".
+    expect(resolveApiUrl("https://backend.railway.app")).toBe(
+      "https://backend.railway.app/api"
+    );
+  });
+
+  it("appends /api to a bare origin that has a trailing slash", () => {
+    expect(resolveApiUrl("https://backend.railway.app/")).toBe(
+      "https://backend.railway.app/api"
+    );
+  });
+
+  it("falls back to /api when given an empty string", () => {
+    expect(resolveApiUrl("")).toBe("/api");
+  });
+
+  it("falls back to /api when given undefined", () => {
+    expect(resolveApiUrl(undefined)).toBe("/api");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// apiRequest – HTTP client tests
+// ---------------------------------------------------------------------------
 describe("apiRequest", () => {
   it("sends JSON requests with cookies and returns JSON responses", async () => {
     const fetch = vi.fn().mockResolvedValue(
@@ -23,6 +67,7 @@ describe("apiRequest", () => {
     ).resolves.toEqual({ success: true });
 
     expect(fetch).toHaveBeenCalledWith(
+      // The request must always include the /api prefix so Express can route it.
       expect.stringMatching(/\/api\/auth\/register$/),
       expect.objectContaining({
         credentials: "include",
@@ -31,6 +76,23 @@ describe("apiRequest", () => {
         body: JSON.stringify({ email: "person@example.com" }),
       })
     );
+  });
+
+  it("produces /api/auth/login with the default base URL", async () => {
+    // Guard: the login path must always reach /api/auth/login, never /auth/login.
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ user: {} }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/auth/login", { method: "POST", body: { email: "a@b.com", password: "pw" } });
+
+    const calledUrl = fetch.mock.calls[0][0];
+    expect(calledUrl).toMatch(/\/api\/auth\/login$/);
+    expect(calledUrl).not.toMatch(/^\/auth/);
   });
 
   it("reports API errors with status and response details", async () => {

@@ -1,5 +1,28 @@
-const API_URL = (import.meta.env.VITE_API_URL || "/api")
-  .replace(/\/+$/, "");
+// VITE_API_URL must point to the /api prefix of the backend.
+// Examples:
+//   Local dev (Vite proxy):         /api               (default)
+//   Railway/Render production:      https://your-backend.railway.app/api
+// A URL that ends with /api is correct.  A bare origin without /api will be
+// normalised automatically, but setting VITE_API_URL correctly is preferred.
+function resolveApiUrl(raw) {
+  const trimmed = (raw || "/api").replace(/\/+$/, "");
+  // If the caller gave us a full origin without a path (e.g. https://host or
+  // https://host:3000) append /api so every apiRequest path is correct.
+  try {
+    if (trimmed && !trimmed.startsWith("/")) {
+      const parsed = new URL(trimmed);
+      if (parsed.pathname === "/" || parsed.pathname === "") {
+        return trimmed + "/api";
+      }
+    }
+  } catch {
+    // Not a full URL — relative path like "/api", fall through.
+  }
+  return trimmed;
+}
+
+export { resolveApiUrl };
+const API_URL = resolveApiUrl(import.meta.env.VITE_API_URL);
 
 export async function apiRequest(path, options = {}) {
   const { body, headers = {}, responseType, ...requestOptions } = options;
