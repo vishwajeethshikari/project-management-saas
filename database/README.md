@@ -4,7 +4,7 @@
 
 For databases that already contain application data, inspect the current
 schema and apply the ordered migrations in `migrations/` only after review.
-The psql script `schema.sql` includes migrations 001 through 010:
+The psql script `schema.sql` includes migrations 001 through 011:
 
 1. `001_create_users.sql`
 2. `002_create_workspace_domain.sql`
@@ -16,6 +16,23 @@ The psql script `schema.sql` includes migrations 001 through 010:
 8. `008_workload_analytics_notifications.sql`
 9. `009_backfill_organization_memberships.sql`
 10. `010_project_members_and_enhancements.sql`
+11. `011_repair_production_schema.sql`
+
+Migration 011 is a forward-only repair for partially migrated production
+databases. It adds current application columns, notification deduplication,
+recurring-task storage, missing indexes, organization membership links, and
+tenant-scoped foreign keys. Existing rows are preserved; foreign keys added as
+`NOT VALID` are enforced for new writes while existing data can be reviewed and
+validated separately.
+
+After applying migration 011 manually, validate the schema from a machine with
+an explicitly configured `DATABASE_URL`:
+
+```powershell
+npm --prefix backend run db:validate-schema
+```
+
+The validator is read-only and reports any missing required tables or columns.
 
 From the repository root:
 
